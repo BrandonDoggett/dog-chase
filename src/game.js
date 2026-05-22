@@ -906,34 +906,34 @@ class GameOverScene extends Phaser.Scene {
     cg.lineStyle(2,0xFFD766,0.55); cg.strokeRoundedRect(22,28,W-44,H-56,18);
     cg.fillStyle(0xFFD766,0.8); cg.fillRoundedRect(22,28,W-44,5,{tl:18,tr:18,bl:0,br:0});
 
-    this.add.text(W/2,52,"Time's Up!",
+    this.add.text(W/2,72,"Time's Up!",
       {fontSize:'36px',fill:'#FFF5DD',stroke:'#2A1800',strokeThickness:4,fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5).setDepth(2);
 
     // NEW BEST badge — sits below title, above dog
     if(this.newBest){
       const nbg=this.add.graphics().setDepth(2);
-      nbg.fillStyle(0xFFCC00,1); nbg.fillRoundedRect(W/2-76,74,152,30,15);
-      nbg.lineStyle(2,0xFFAA00,1); nbg.strokeRoundedRect(W/2-76,74,152,30,15);
-      const nb=this.add.text(W/2,89,'★  NEW BEST!  ★',
+      nbg.fillStyle(0xFFCC00,1); nbg.fillRoundedRect(W/2-76,94,152,30,15);
+      nbg.lineStyle(2,0xFFAA00,1); nbg.strokeRoundedRect(W/2-76,94,152,30,15);
+      const nb=this.add.text(W/2,109,'★  NEW BEST!  ★',
         {fontSize:'15px',fill:'#3A1800',fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5).setDepth(3);
       this.tweens.add({targets:[nbg,nb],scaleX:1.05,scaleY:1.05,duration:550,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     }
 
-    // Dog — clear of NEW BEST badge (badge bottom=104, dog top=123)
+    // Dog — center at 192 (top=140, clear of badge bottom 124)
     const dogIdx=this.registry.get('dogIdx')??0;
-    const dog=this.add.image(W/2,175,'dog_'+dogIdx).setScale(1.8).setDepth(2);
-    this.tweens.add({targets:dog,y:165,duration:1000,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-    this.add.ellipse(W/2,228,42,11,0x000000,0.15).setDepth(1);
+    const dog=this.add.image(W/2,192,'dog_'+dogIdx).setScale(1.8).setDepth(2);
+    this.tweens.add({targets:dog,y:182,duration:1000,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    this.add.ellipse(W/2,245,42,11,0x000000,0.15).setDepth(1);
 
-    // Score box
+    // Score box — top at 252 (dog bottom=244, 8px gap)
     const sb=this.add.graphics().setDepth(2);
-    sb.fillStyle(0xFFD766,0.13); sb.fillRoundedRect(W/2-88,236,176,86,14);
-    sb.lineStyle(2,0xFFD766,0.5); sb.strokeRoundedRect(W/2-88,236,176,86,14);
-    this.add.text(W/2,276,`${this.final}`,
+    sb.fillStyle(0xFFD766,0.13); sb.fillRoundedRect(W/2-88,252,176,82,14);
+    sb.lineStyle(2,0xFFD766,0.5); sb.strokeRoundedRect(W/2-88,252,176,82,14);
+    this.add.text(W/2,289,`${this.final}`,
       {fontSize:'62px',fill:'#FFD766',stroke:'#2A1800',strokeThickness:5,fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5).setDepth(3);
-    this.add.text(W/2,313,'SQUIRRELS CAUGHT',
+    this.add.text(W/2,325,'SQUIRRELS CAUGHT',
       {fontSize:'11px',fill:'#C8A870',fontFamily:FONT,fontStyle:'bold',letterSpacing:2}).setOrigin(0.5).setDepth(3);
-    this.add.text(W/2,334,`All-time best: ${this.hs}`,
+    this.add.text(W/2,344,`All-time best: ${this.hs}`,
       {fontSize:'12px',fill:'#9A9080',fontFamily:FONT}).setOrigin(0.5).setDepth(3);
 
     const msg=this.final>=12?'Unstoppable chaser! 🏆':this.final>=8?'Amazing dog! 🌟':
