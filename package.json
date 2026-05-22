@@ -1,0 +1,24 @@
+{
+  "name": "dog_game",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node --input-type=module < build.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BrandonDoggett/dog-chase.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/BrandonDoggett/dog-chase/issues"
+  },
+  "homepage": "https://github.com/BrandonDoggett/dog-chase#readme",
+  "devDependencies": {
+    "terser": "^5.48.0"
+  }
+}
