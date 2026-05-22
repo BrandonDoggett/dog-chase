@@ -361,7 +361,7 @@ class SelectScene extends Phaser.Scene {
         this.time.delayedCall(280,()=>this.scene.start('Game'));
       });
 
-    this.add.text(W/2, y+PH+16, 'Tap / click to move  ·  WASD or arrow keys',
+    this.add.text(W/2, y+PH+16, 'Drag finger or click to move  ·  WASD / arrows',
       {fontSize:'11px',fill:'#88AA80',fontFamily:FONT}).setOrigin(0.5).setDepth(2);
   }
 
@@ -563,9 +563,33 @@ class GameScene extends Phaser.Scene {
     this.cursors=this.input.keyboard.createCursorKeys();
     this.wasd=this.input.keyboard.addKeys('W,A,S,D');
     this.touch=null;
-    this.input.on('pointerdown',p=>{this.touch={x:p.x,y:p.y};});
-    this.input.on('pointermove',p=>{if(p.isDown)this.touch={x:p.x,y:p.y};});
-    this.input.on('pointerup',()=>{this.touch=null;});
+
+    // Touch target indicator — visible ring that appears where finger is
+    this.touchRingOuter=this.add.circle(0,0,22,0xFFFFFF,0).setDepth(20).setStrokeStyle(2,0xFFFFFF,0.5).setVisible(false);
+    this.touchRingInner=this.add.circle(0,0,6,0xFFFFFF,0.7).setDepth(20).setVisible(false);
+    this.touchLine=this.add.graphics().setDepth(19);
+
+    this.input.on('pointerdown',p=>{
+      if(p.y < 52) return; // ignore taps on the top HUD bar
+      this.touch={x:p.x,y:p.y};
+      this.touchRingOuter.setPosition(p.x,p.y).setVisible(true).setAlpha(1).setScale(1);
+      this.touchRingInner.setPosition(p.x,p.y).setVisible(true).setAlpha(1);
+      this.tweens.killTweensOf(this.touchRingOuter);
+      this.tweens.add({targets:this.touchRingOuter,scaleX:1.4,scaleY:1.4,alpha:0.6,duration:180,ease:'Power2'});
+    });
+    this.input.on('pointermove',p=>{
+      if(!p.isDown) return;
+      this.touch={x:p.x,y:p.y};
+      this.touchRingOuter.setPosition(p.x,p.y);
+      this.touchRingInner.setPosition(p.x,p.y);
+    });
+    this.input.on('pointerup',()=>{
+      this.touch=null;
+      this.tweens.killTweensOf(this.touchRingOuter);
+      this.tweens.add({targets:[this.touchRingOuter,this.touchRingInner],alpha:0,duration:200,
+        onComplete:()=>{ this.touchRingOuter.setVisible(false); this.touchRingInner.setVisible(false); }});
+      this.touchLine.clear();
+    });
   }
 
   buildPowerups() {
@@ -710,6 +734,23 @@ class GameScene extends Phaser.Scene {
       this.tweens.add({targets:tr,alpha:0,scaleX:0.1,scaleY:0.1,duration:280,onComplete:()=>tr.destroy()});
     }
     if(this.combo>0){this.comboTimer-=dt;if(this.comboTimer<=0){this.combo=0;this.comboTxt.setAlpha(0);}}
+    // Draw dashed line from dog to touch target
+    this.touchLine.clear();
+    if(this.touch){
+      const dx=this.touch.x-this.dog.x, dy=this.touch.y-this.dog.y;
+      const dist=Math.hypot(dx,dy);
+      if(dist>20){
+        this.touchLine.lineStyle(1.5,0xFFFFFF,0.22);
+        const steps=Math.floor(dist/12);
+        for(let i=1;i<steps;i+=2){
+          const t0=i/steps, t1=Math.min((i+1)/steps,1);
+          this.touchLine.lineBetween(
+            this.dog.x+dx*t0, this.dog.y+dy*t0,
+            this.dog.x+dx*t1, this.dog.y+dy*t1
+          );
+        }
+      }
+    }
   }
 
   moveDog(dt){
