@@ -7,12 +7,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    html, body { height:100%; }
-    body { background:#0d1117; display:flex; justify-content:center; align-items:center; height:100dvh; overflow:hidden; position:fixed; width:100%; top:0; left:0; }
-    canvas { display:block; touch-action:none; }
+    html, body { width:100%; height:100%; background:#0d1117; overflow:hidden; }
+    #game { position:fixed; top:0; left:0; width:100%; height:100%; }
+    canvas { touch-action:none; }
   </style>
 </head>
 <body>
+<div id="game"></div>
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
 <script>
 const W = 480, H = 640, SECS = 60, N_SQ = 5;
@@ -962,6 +963,7 @@ class GameOverScene extends Phaser.Scene {
 new Phaser.Game({
   type:Phaser.AUTO,
   backgroundColor:'#0d1117',
+  parent:'game',
   scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:W,height:H},
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
   scene:[BootScene,SelectScene,GameScene,GameOverScene],
