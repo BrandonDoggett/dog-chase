@@ -20,10 +20,10 @@ const W = 480, H = 640, SECS = 60, N_SQ = 5;
 const FONT = 'Nunito, Arial';
 
 const DOGS = [
-  { name:'Aussie Doxie',    speed:158, catch:24, desc:'Your wiggly default pup',  body:0x9B5E2A, patch:0xF5ECD7, ear:0x4E2206, snout:0xC8864A },
-  { name:'Golden Retriever',speed:144, catch:30, desc:'Friendly & wide-reaching', body:0xD4962A, patch:0xF0D060, ear:0xA06818, snout:0xB86830 },
-  { name:'Dalmatian',       speed:178, catch:21, desc:'Lightning fast, precise!', body:0xEEEBE6, patch:0x222222, ear:0xD8D4CE, snout:0xE8E2D8 },
-  { name:'Corgi',           speed:128, catch:35, desc:'Slow but enormous reach',  body:0xD08040, patch:0xF5ECD7, ear:0x904018, snout:0xE09858 },
+  { name:'Aussie Doxie',    speed:148, catch:27, sStars:3, rStars:3, desc:'Balanced all-rounder',       body:0x9B5E2A, patch:0xF5ECD7, ear:0x4E2206, snout:0xC8864A },
+  { name:'Golden Retriever',speed:142, catch:38, sStars:3, rStars:4, desc:'Wide reach, steady pace',    body:0xD4962A, patch:0xF0D060, ear:0xA06818, snout:0xB86830 },
+  { name:'Dalmatian',       speed:192, catch:17, sStars:5, rStars:2, desc:'Blazing fast, get in close', body:0xEEEBE6, patch:0x222222, ear:0xD8D4CE, snout:0xE8E2D8 },
+  { name:'Corgi',           speed:108, catch:48, sStars:2, rStars:5, desc:'Slow legs, massive reach',   body:0xD08040, patch:0xF5ECD7, ear:0x904018, snout:0xE09858 },
 ];
 
 const SQUIRRELS = [
@@ -278,7 +278,7 @@ class SelectScene extends Phaser.Scene {
 
     const dg = DOGS[this.dogIdx];
     this.add.text(W/2, y,
-      `${dg.desc}  ·  Spd ${'▸'.repeat(Math.round(dg.speed/44))}  Reach ${'●'.repeat(Math.round(dg.catch/9))}`,
+      `${dg.desc}  ·  Spd ${'▸'.repeat(dg.sStars)}  Reach ${'●'.repeat(dg.rStars)}`,
       {fontSize:'11px',fill:'#C8DCBC',fontFamily:FONT}).setOrigin(0.5).setDepth(2);
     y += 18;
 
