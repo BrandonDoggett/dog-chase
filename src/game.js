@@ -1110,13 +1110,13 @@ class LeaderboardScene extends Phaser.Scene {
   _updateTabs(){
     this.tabBtns.forEach(({key,tbg,ttxt})=>{
       const sel=key===this.period;
-      tbg.clear();
-      if(sel){ tbg.fillStyle(0xFFD766,0.18); tbg.fillRoundedRect(tbg.x||0,62,144,28,8); }
-      tbg.lineStyle(1.5,sel?0xFFD766:0xFFFFFF,sel?0.8:0.2);
       const x=ttxt.x-72;
-      tbg.fillStyle(sel?0xFFD766:0x333333,sel?0.18:0.1); tbg.fillRoundedRect(x,62,144,28,8);
-      tbg.lineStyle(1.5,sel?0xFFD766:0xFFFFFF,sel?0.7:0.15); tbg.strokeRoundedRect(x,62,144,28,8);
-      ttxt.setStyle({fill:sel?'#FFD766':'#888880',fontFamily:FONT,fontStyle:'bold',fontSize:'12px'});
+      tbg.clear();
+      tbg.fillStyle(sel?0xFFD766:0x334433,sel?0.28:0.08);
+      tbg.fillRoundedRect(x,62,144,28,8);
+      tbg.lineStyle(2,sel?0xFFD766:0xFFFFFF,sel?0.9:0.15);
+      tbg.strokeRoundedRect(x,62,144,28,8);
+      ttxt.setStyle({fill:sel?'#FFD766':'#667766',fontFamily:FONT,fontStyle:'bold',fontSize:'12px'});
     });
   }
   async _load(){
