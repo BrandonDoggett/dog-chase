@@ -4,13 +4,21 @@ on:
   push:
     branches: [main, master]
 
+# Deploy credentials come from GitHub's OIDC token, exchanged for a short-lived AWS
+# role that can only upload this site and invalidate its CDN. No AWS key is stored
+# in this repository. The role's ARN is the AWS_DEPLOY_ROLE_ARN secret, which keeps
+# the account id out of a public file.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: 'npm'
@@ -29,10 +37,10 @@ jobs:
           API_URL: ${{ secrets.API_URL }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: dogchase-deploy-${{ github.run_id }}
           aws-region: us-east-1
 
       # Assets first and HTML last, so the live page never points at a file
