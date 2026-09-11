@@ -4,7 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { rmSync } from "node:fs";
 
-const FILES = ["index.mjs", "shared.mjs", "validate.mjs", "package.json"].map(f => `lambda/${f}`);
+const FILES = ["index.mjs", "shared.mjs", "validate.mjs", "cors.mjs", "package.json"].map(f => `lambda/${f}`);
 const AWS = ["--profile", process.env.AWS_PROFILE || "dogchase", "--region", "us-east-1"];
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: "inherit" });
 

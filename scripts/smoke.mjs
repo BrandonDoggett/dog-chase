@@ -2,25 +2,10 @@
 // service worker takes over, and the game still loads with the server gone.
 // Usage: npm run build && npm run smoke   (screenshots land in .smoke/)
 import { chromium } from "playwright";
-import { createServer } from "node:http";
-import { readFile, mkdir } from "node:fs/promises";
-import { extname, join, normalize, resolve } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { serveDist } from "./serve-dist.mjs";
 
-const ROOT = resolve("dist");
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".webmanifest": "application/manifest+json",
-  ".png": "image/png", ".woff2": "font/woff2" };
-
-const server = createServer(async (req, res) => {
-  const path = decodeURIComponent(new URL(req.url, "http://x").pathname);
-  const file = normalize(join(ROOT, path === "/" ? "index.html" : path));
-  if (!file.startsWith(ROOT)) return res.writeHead(403).end();
-  try {
-    const body = await readFile(file);
-    res.writeHead(200, { "Content-Type": TYPES[extname(file)] || "application/octet-stream", "Cache-Control": "no-cache" }).end(body);
-  } catch { res.writeHead(404).end(); }
-});
-await new Promise(r => server.listen(0, "127.0.0.1", r));
-const base = `http://127.0.0.1:${server.address().port}/`;
+const { server, base } = await serveDist();
 
 let failed = 0;
 const check = (name, ok, detail = "") => {
@@ -40,6 +25,11 @@ page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
 const external = [];
 await context.route(url => url.origin !== new URL(base).origin, route => { external.push(route.request().url()); route.abort(); });
 
+// The game exposes itself as window.dogChase, so we wait for a scene rather
+// than guessing at timings.
+const sceneActive = (key, timeout = 30000) =>
+  page.waitForFunction(k => window.dogChase?.scene.isActive(k), key, { timeout }).then(() => true, () => false);
+
 // Taps a point given in game coordinates (the canvas is 480x640, scaled to fit).
 async function tapGame(x, y) {
   const box = await page.locator("canvas").boundingBox();
@@ -48,20 +38,26 @@ async function tapGame(x, y) {
 }
 
 await page.goto(base);
-await page.waitForSelector("canvas");
-await page.waitForTimeout(1800);
+check("first run shows the name screen", await sceneActive("Name"));
+await page.waitForTimeout(400); // let the fade-in finish
 await page.screenshot({ path: ".smoke/1-name.png" });
 check("Nunito font loads from our own server", await page.evaluate(() => document.fonts.check("900 16px Nunito")));
 check("service worker installs", await page.evaluate(async () => !!(await navigator.serviceWorker.ready).active));
 
 await tapGame(240, 320 + 86); // LET'S GO
-await page.waitForTimeout(900);
+check("LET'S GO opens the pick screen and saves a generated name",
+  await sceneActive("Select") && await page.evaluate(() => isValidName(localStorage.getItem("dogchase_name"))));
+await page.waitForTimeout(400);
 await page.screenshot({ path: ".smoke/2-select.png" });
-check("LET'S GO saves a generated leaderboard name",
-  await page.evaluate(() => isValidName(localStorage.getItem("dogchase_name"))));
+
+const privacyRequest = context.waitForEvent("request", { predicate: r => r.url().endsWith("/privacy.html"), timeout: 5000 })
+  .then(r => r.url(), () => null);
+await tapGame(480 - 34, 640 - 14); // Privacy link, bottom right of the pick screen
+check("pick screen links to the privacy policy", !!(await privacyRequest), "no request for /privacy.html");
+for (const p of context.pages()) if (p !== page) await p.close();
 
 await page.reload();
-await page.waitForSelector("canvas");
+await sceneActive("Select");
 check("service worker controls the page after reload", await page.evaluate(() => !!navigator.serviceWorker.controller));
 
 const manifest = await page.evaluate(async () => {
@@ -79,12 +75,12 @@ await context.setOffline(true);
 server.closeAllConnections();
 await new Promise(r => server.close(r));
 await page.reload();
-await page.waitForSelector("canvas");
-await page.waitForTimeout(1800);
+const offline = await sceneActive("Select");
 await page.screenshot({ path: ".smoke/3-offline.png" });
-check("game loads with no network", await page.evaluate(() => typeof Phaser !== "undefined" && document.fonts.check("900 16px Nunito")));
+check("game loads with no network", offline && await page.evaluate(() => document.fonts.check("900 16px Nunito")));
 
-const unexpected = external.filter(u => !/\.execute-api\.[a-z0-9-]+\.amazonaws\.com\/|localhost:3001/.test(u));
+const unexpected = external.filter(u =>
+  !/\.execute-api\.[a-z0-9-]+\.amazonaws\.com\/|localhost:3001|^https:\/\/dogchase\.eldoggosoftware\.com\/privacy\.html$/.test(u));
 check("no requests to third-party hosts", unexpected.length === 0, unexpected.join(", "));
 const realErrors = errors.filter(e => !/Failed to load resource|net::ERR_|Failed to fetch/i.test(e));
 check("no JavaScript errors", realErrors.length === 0, realErrors.join(" | "));

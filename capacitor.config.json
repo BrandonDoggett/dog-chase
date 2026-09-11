@@ -1,0 +1,12 @@
+{
+  "appId": "com.eldoggosoftware.dogchase",
+  "appName": "Dog Chase",
+  "webDir": "dist",
+  "backgroundColor": "#0d1117",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
+    }
+  }
+}

@@ -8,7 +8,14 @@
     "test": "node --test",
     "smoke": "node scripts/smoke.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "deploy:lambda": "npm test && node scripts/deploy-lambda.mjs"
+    "store": "node scripts/store-assets.mjs",
+    "deploy:lambda": "npm test && node scripts/deploy-lambda.mjs",
+    "cap": "cap",
+    "android:assets": "npx --yes @capacitor/assets@3.0.5 generate --android --assetPath assets",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && node scripts/android.mjs assembleDebug",
+    "android:bundle": "npm run android:sync && node scripts/android.mjs bundleRelease",
+    "android:smoke": "node scripts/android-smoke.mjs"
   },
   "repository": {
     "type": "git",
@@ -23,9 +30,14 @@
   },
   "homepage": "https://github.com/BrandonDoggett/dog-chase#readme",
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "@fontsource/nunito": "^5.3.0",
     "phaser": "^3.70.0",
     "playwright": "^1.62.1",
     "terser": "^5.48.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/core": "^8.5.1"
   }
 }

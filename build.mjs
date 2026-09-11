@@ -10,6 +10,9 @@ import { createHash } from "crypto";
 import { join, relative, sep } from "path";
 
 const OUT = "dist";
+// Local builds (including the Android app) read API_URL from a gitignored
+// .env; see .env.example. CI sets it from a repository secret.
+try { process.loadEnvFile(".env"); } catch {}
 const API_URL = process.env.API_URL || "http://localhost:3001";
 if (!process.env.API_URL) console.warn(`API_URL not set; leaderboard calls will go to ${API_URL}`);
 

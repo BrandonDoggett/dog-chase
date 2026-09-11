@@ -3,3 +3,4 @@ node_modules/
 lambda/function.zip
 dist/
 .smoke/
+.env

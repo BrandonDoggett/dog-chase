@@ -25,6 +25,21 @@ The production API only allows the live origin (CORS), so the leaderboard shows 
 
 Live URL: **https://dogchase.eldoggosoftware.com**
 
+## Android app
+
+The store app wraps the same `dist/` build with Capacitor 8 in `android/`. The app id is `com.eldoggosoftware.dogchase`, and it can never change once the app is on Google Play. No Android Studio is needed:
+
+- **Toolchain:** JDK 21 at `%LOCALAPPDATA%\Programs\jdk-21`, Android SDK at `%LOCALAPPDATA%\Android\Sdk`. `scripts/android.mjs` points Gradle at both; override with `JAVA_HOME` / `ANDROID_HOME`.
+- **Build:** `npm run android:apk` builds a debug APK for a phone or the emulator. `npm run android:bundle` builds the signed release `.aab` for Google Play. Both rebuild `dist/` and run `cap sync` first. Output goes to `android/app/build/outputs/`.
+- **API URL:** local builds read `API_URL` from `.env` (copy `.env.example`). The Lambda's CORS list in `lambda/cors.mjs` includes the app origins `https://localhost` (Android) and `capacitor://localhost` (iOS).
+- **Signing:** release builds use the Play upload key in `~/.eldoggo/dogchase/` (`upload.jks` + `upload.properties`), outside the repo. Keep a backup of both. Play App Signing holds the real app-signing key.
+- **Versions:** bump `versionCode` (and `versionName`) in `android/app/build.gradle` before every Play upload.
+- **Icons and splash:** `npm run icons` redraws `assets/*.png`, then `npm run android:assets` regenerates the Android resources.
+- **Emulator:** an Android 16 virtual phone named `dogchase` is installed. Start it with `%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe -avd dogchase` (add `-no-window -gpu swiftshader_indirect` to run it headless), then install with `adb install -r android\app\build\outputs\apk\debug\app-debug.apk`.
+- **Android smoke test:** `npm run android:smoke` starts the installed debug app fresh and checks it from inside its WebView over DevTools: name screen, one canvas, local font, no service worker, the leaderboard loading, and no screen relaunch at startup. Screenshots go to `.smoke/`.
+- **Store listing:** `store/listing.md` has the Play copy and suggested App content answers. `npm run store` renders the feature graphic and screenshots from the real game. The privacy policy is `public/privacy.html`, served at `/privacy.html` and linked from the pick screen. Google Play requires it both in the listing and inside the app.
+- The service worker is skipped inside the app (`window.Capacitor` is set there), since the app already ships every file.
+
 ## Architecture
 
 The game is one script, `src/game.js`, on Phaser 3. `build.mjs` minifies it and inlines it into `dist/index.html`. Phaser and the Nunito font are copied from `node_modules` and served from our own origin, with no CDNs, so the game works offline and inside app-store builds.

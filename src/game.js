@@ -361,6 +361,15 @@ class SelectScene extends Phaser.Scene {
         this.cameras.main.fadeOut(260,0,0,0);
         this.time.delayedCall(260,()=>this.scene.start('Leaderboard'));
       });
+
+    // Privacy policy. Google Play requires a link inside the app, not just on the listing.
+    // In the store app an outside link opens the phone's browser; on the web, a new tab.
+    this.add.text(W-12,H-14,'Privacy',{fontSize:'10px',fill:'#CFE8C8',fontFamily:FONT}).setOrigin(1,0.5).setDepth(3).setAlpha(0.8);
+    this.add.rectangle(W-34,H-14,72,28,0,0).setDepth(4).setInteractive({useHandCursor:true})
+      .on('pointerdown',()=>{
+        const url='https://dogchase.eldoggosoftware.com/privacy.html';
+        if(window.Capacitor) location.href=url; else window.open(url,'_blank','noopener');
+      });
   }
 
   _card(g, x, y, w, h, selected) {
@@ -934,12 +943,14 @@ class GameOverScene extends Phaser.Scene {
       {fontSize:'62px',fill:'#FFD766',stroke:'#2A1800',strokeThickness:5,fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5).setDepth(3);
     this.add.text(W/2,325,'SQUIRRELS CAUGHT',
       {fontSize:'11px',fill:'#C8A870',fontFamily:FONT,fontStyle:'bold',letterSpacing:2}).setOrigin(0.5).setDepth(3);
-    this.add.text(W/2,344,`All-time best: ${this.hs}`,
+    // A new best already has its badge. Otherwise show the record under the score
+    // and move the message down, so the two lines don't print over each other.
+    if(!this.newBest) this.add.text(W/2,344,`All-time best: ${this.hs}`,
       {fontSize:'12px',fill:'#9A9080',fontFamily:FONT}).setOrigin(0.5).setDepth(3);
 
     const msg=this.final>=12?'Unstoppable chaser! 🏆':this.final>=8?'Amazing dog! 🌟':
               this.final>=5?'Good pup! 🦴':this.final>=2?'Keep chasing! 🐾':'Sneaky squirrels! 🐿️';
-    this.add.text(W/2,348,msg,{fontSize:'17px',fill:'#EEE0C8',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(2);
+    this.add.text(W/2,this.newBest?348:366,msg,{fontSize:'17px',fill:'#EEE0C8',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(2);
 
     // Squirrel parade
     const sqIdx=this.registry.get('sqIdx')??0;
@@ -1156,11 +1167,12 @@ class LeaderboardScene extends Phaser.Scene {
 // Canvas text doesn't redraw when a web font arrives late, so give Nunito a
 // moment to load first. It's served locally and preloaded, so this is quick.
 const fontsReady=document.fonts?Promise.all(['400','700','900'].map(w=>document.fonts.load(`${w} 16px Nunito`))):Promise.resolve();
-Promise.race([fontsReady,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then(()=>new Phaser.Game({
+// window.dogChase lets the smoke tests wait for a scene instead of guessing timings.
+Promise.race([fontsReady,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then(()=>{ window.dogChase=new Phaser.Game({
   type:Phaser.AUTO,
   backgroundColor:'#0d1117',
   parent:'game',
   scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:W,height:H},
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
   scene:[BootScene,NameScene,SelectScene,GameScene,GameOverScene,LeaderboardScene],
-}));
+}); });

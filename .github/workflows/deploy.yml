@@ -15,8 +15,10 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      # --ignore-scripts: no package needs an install script to build, and this
+      # job goes on to hold deploy credentials.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Unit tests
         run: npm test
@@ -42,6 +44,7 @@ jobs:
           aws s3 cp dist/fonts $B/fonts --recursive --content-type "font/woff2" --cache-control "public, max-age=2592000"
           aws s3 cp dist/icons $B/icons --recursive --content-type "image/png" --cache-control "public, max-age=86400"
           aws s3 cp dist/manifest.webmanifest $B/manifest.webmanifest --content-type "application/manifest+json" --cache-control "no-cache"
+          aws s3 cp dist/privacy.html $B/privacy.html --content-type "text/html" --cache-control "public, max-age=3600"
           aws s3 cp dist/sw.js $B/sw.js --content-type "text/javascript" --cache-control "no-cache"
           aws s3 cp dist/index.html $B/index.html --content-type "text/html" --cache-control "no-cache"
 

@@ -2,21 +2,11 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { validateSubmission, MAX_TOKEN_SECS } from "./validate.mjs";
+import { corsHeaders } from "./cors.mjs";
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({ region: "us-east-1" }));
 const TABLE = "dogchase-scores";
 const SECRET = process.env.TOKEN_SECRET;
-const ORIGIN = process.env.ALLOWED_ORIGIN || "https://dogchase.eldoggosoftware.com";
-
-const cors = {
-  "Access-Control-Allow-Origin": ORIGIN,
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
-function respond(status, body) {
-  return { statusCode: status, headers: { ...cors, "Content-Type": "application/json" }, body: JSON.stringify(body) };
-}
 
 function signToken(payload) {
   const data = JSON.stringify(payload);
@@ -47,6 +37,8 @@ function isoWeek(date) {
 export async function handler(event) {
   const method = event.httpMethod;
   const path = event.path;
+  const headers = { ...corsHeaders(event.headers), "Content-Type": "application/json" };
+  const respond = (status, body) => ({ statusCode: status, headers, body: JSON.stringify(body) });
 
   if (method === "OPTIONS") return respond(200, {});
 
