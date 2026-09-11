@@ -171,7 +171,8 @@ class BootScene extends Phaser.Scene {
     sp.generateTexture('dot',10,10); sp.destroy();
 
     this.cameras.main.fadeIn(400,0,0,0);
-    const hasName=!!localStorage.getItem('dogchase_name');
+    // Typed names from older versions no longer count; those players pick a generated one
+    const hasName=isValidName(localStorage.getItem('dogchase_name'));
     this.time.delayedCall(400,()=>this.scene.start(hasName?'Select':'Name'));
   }
 }
@@ -996,11 +997,12 @@ class GameOverScene extends Phaser.Scene {
 }
 
 // ── Fun name generator ────────────────────────────────────────────────────────
-const ADJ=['Swift','Brave','Sneaky','Fluffy','Mighty','Zippy','Fuzzy','Turbo','Lucky','Sly'];
-const NOU=['Corgi','Doxie','Chaser','Dasher','Pouncer','Fetcher','Sprinter','Catcher','Hound','Pup'];
-function genName(){ return ADJ[Math.floor(Math.random()*ADJ.length)]+NOU[Math.floor(Math.random()*NOU.length)]+Math.floor(Math.random()*99+1); }
+// genName() and isValidName() live in lambda/shared.mjs. build.mjs inlines that
+// file ahead of this one, so the game and the leaderboard Lambda share one list.
 
 // ── Name Entry Scene ──────────────────────────────────────────────────────────
+// Names are generated, never typed: the board is public and kids play this, so
+// no slurs and no real names. The Lambda enforces the same rule.
 class NameScene extends Phaser.Scene {
   constructor(){ super('Name'); }
   create(){
@@ -1013,30 +1015,25 @@ class NameScene extends Phaser.Scene {
 
     this.add.text(W/2,H/2-130,'WHO ARE YOU?',
       {fontSize:'22px',fill:'#FFD766',fontFamily:FONT,fontStyle:'900',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(2);
-    this.add.text(W/2,H/2-100,'Enter your name for the leaderboard',
+    this.add.text(W/2,H/2-100,'Your name on the leaderboard',
       {fontSize:'12px',fill:'#AAB8A0',fontFamily:FONT}).setOrigin(0.5).setDepth(2);
 
-    // Name input using DOM
-    this.nameInput = this.add.dom(W/2, H/2-55).createFromHTML(
-      `<input id="nameInput" type="text" maxlength="20" placeholder="Your name..."
-       style="width:240px;padding:10px 14px;font-size:18px;font-family:Nunito,Arial;
-       border-radius:10px;border:2px solid #FFD766;background:#0d1117;color:#FFF5DD;
-       text-align:center;outline:none;" />`
-    ).setDepth(3);
+    // Name plate
+    const saved=localStorage.getItem('dogchase_name');
+    this.playerName=isValidName(saved)?saved:genName();
+    const nb=this.add.graphics().setDepth(2);
+    nb.fillStyle(0x0d1117,1); nb.fillRoundedRect(W/2-130,H/2-78,260,46,10);
+    nb.lineStyle(2,0xFFD766,1); nb.strokeRoundedRect(W/2-130,H/2-78,260,46,10);
+    this.nameTxt=this.add.text(W/2,H/2-55,this.playerName,
+      {fontSize:'22px',fill:'#FFF5DD',fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5).setDepth(3);
 
-    const savedName = localStorage.getItem('dogchase_name') || '';
-    if(savedName) this.nameInput.getChildByID('nameInput').value = savedName;
-
-    // Generate button
+    // Reroll button
     const gbg=this.add.graphics().setDepth(2);
     drawBtn(gbg,W/2-110,H/2+5,220,40,20,0x334455,0xAABBCC,0.4);
-    this.add.text(W/2,H/2+25,'🎲  Generate a name',
+    this.add.text(W/2,H/2+25,'🎲  Pick another name',
       {fontSize:'13px',fill:'#AACCEE',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
     this.add.rectangle(W/2,H/2+25,220,40,0,0).setDepth(4).setInteractive({useHandCursor:true})
-      .on('pointerdown',()=>{
-        const n=genName();
-        this.nameInput.getChildByID('nameInput').value=n;
-      });
+      .on('pointerdown',()=>{ this.playerName=genName(); this.nameTxt.setText(this.playerName); });
 
     // Play button
     const pbg=this.add.graphics().setDepth(2);
@@ -1045,12 +1042,12 @@ class NameScene extends Phaser.Scene {
       {fontSize:'22px',fill:'#fff',fontStyle:'900',fontFamily:FONT,stroke:'#7A3800',strokeThickness:2}).setOrigin(0.5).setDepth(3);
     this.add.rectangle(W/2,H/2+86,220,52,0,0).setDepth(4).setInteractive({useHandCursor:true})
       .on('pointerdown',()=>this._submit());
+    this.add.text(W/2,H/2+132,'Names are picked for you to keep the board friendly',
+      {fontSize:'10px',fill:'#667766',fontFamily:FONT}).setOrigin(0.5).setDepth(2);
     this.input.keyboard.once('keydown-ENTER',()=>this._submit());
   }
   _submit(){
-    const raw=this.nameInput.getChildByID('nameInput').value.trim();
-    const name=raw||genName();
-    localStorage.setItem('dogchase_name',name);
+    localStorage.setItem('dogchase_name',this.playerName);
     this.cameras.main.fadeOut(280,0,0,0);
     this.time.delayedCall(280,()=>this.scene.start('Select'));
   }
@@ -1156,12 +1153,14 @@ class LeaderboardScene extends Phaser.Scene {
 }
 
 // ── Launch ────────────────────────────────────────────────────────────────────
-new Phaser.Game({
+// Canvas text doesn't redraw when a web font arrives late, so give Nunito a
+// moment to load first. It's served locally and preloaded, so this is quick.
+const fontsReady=document.fonts?Promise.all(['400','700','900'].map(w=>document.fonts.load(`${w} 16px Nunito`))):Promise.resolve();
+Promise.race([fontsReady,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then(()=>new Phaser.Game({
   type:Phaser.AUTO,
   backgroundColor:'#0d1117',
   parent:'game',
-  dom:{ createContainer:true },
   scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:W,height:H},
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
   scene:[BootScene,NameScene,SelectScene,GameScene,GameOverScene,LeaderboardScene],
-});
+}));

@@ -12,13 +12,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build (minify + inject API URL)
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (minify, inject API URL, PWA assets)
         run: npm run build
         env:
           API_URL: ${{ secrets.API_URL }}
@@ -30,11 +33,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      # Assets first and HTML last, so the live page never points at a file
+      # that hasn't been uploaded yet.
       - name: Upload to S3
         run: |
-          aws s3 cp index.html s3://dogchase-eldoggosoftware/index.html \
-            --content-type "text/html" \
-            --cache-control "no-cache"
+          B=s3://dogchase-eldoggosoftware
+          aws s3 cp dist/vendor $B/vendor --recursive --content-type "text/javascript" --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp dist/fonts $B/fonts --recursive --content-type "font/woff2" --cache-control "public, max-age=2592000"
+          aws s3 cp dist/icons $B/icons --recursive --content-type "image/png" --cache-control "public, max-age=86400"
+          aws s3 cp dist/manifest.webmanifest $B/manifest.webmanifest --content-type "application/manifest+json" --cache-control "no-cache"
+          aws s3 cp dist/sw.js $B/sw.js --content-type "text/javascript" --cache-control "no-cache"
+          aws s3 cp dist/index.html $B/index.html --content-type "text/html" --cache-control "no-cache"
 
       - name: Invalidate CloudFront cache
         run: |

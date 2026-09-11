@@ -1,13 +1,12 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { createHmac, randomBytes } from "crypto";
+import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { validateSubmission, MAX_TOKEN_SECS } from "./validate.mjs";
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({ region: "us-east-1" }));
 const TABLE = "dogchase-scores";
 const SECRET = process.env.TOKEN_SECRET;
 const ORIGIN = process.env.ALLOWED_ORIGIN || "https://dogchase.eldoggosoftware.com";
-const MAX_SCORE = 150;
-const MIN_GAME_SECS = 58;
 
 const cors = {
   "Access-Control-Allow-Origin": ORIGIN,
@@ -27,10 +26,12 @@ function signToken(payload) {
 }
 
 function verifyToken(token) {
+  if (typeof token !== "string") return null;
   const [b64, sig] = token.split(".");
   if (!b64 || !sig) return null;
-  const expected = createHmac("sha256", SECRET).update(b64).digest("base64url");
-  if (expected !== sig) return null;
+  const expected = Buffer.from(createHmac("sha256", SECRET).update(b64).digest("base64url"));
+  const given = Buffer.from(sig);
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
   try { return JSON.parse(Buffer.from(b64, "base64url").toString()); }
   catch { return null; }
 }
@@ -60,41 +61,30 @@ export async function handler(event) {
     let body;
     try { body = JSON.parse(event.body); } catch { return respond(400, { error: "Bad request" }); }
 
-    const { token, playerName, score, dog, squirrel } = body;
-    if (!token || !playerName || score == null || !dog || !squirrel)
-      return respond(400, { error: "Missing fields" });
+    const checked = validateSubmission(body, verifyToken(body?.token), Date.now());
+    if (checked.error) return respond(checked.status, { error: checked.error });
 
-    const payload = verifyToken(token);
-    if (!payload) return respond(403, { error: "Invalid token" });
-
-    const elapsed = (Date.now() - payload.iat) / 1000;
-    if (elapsed < MIN_GAME_SECS) return respond(403, { error: "Game too short" });
-    if (elapsed > 600) return respond(403, { error: "Token expired" });
-
-    if (typeof score !== "number" || score < 0 || score > MAX_SCORE || !Number.isInteger(score))
-      return respond(400, { error: "Invalid score" });
-
-    const name = String(playerName).trim().slice(0, 24).replace(/[^a-zA-Z0-9 _\-!?.]/g, "");
-    if (!name) return respond(400, { error: "Invalid name" });
-
-    // Reject replayed tokens
-    const used = await db.send(new GetCommand({ TableName: TABLE, Key: { scoreId: `used_${payload.id}` } }));
-    if (used.Item) return respond(403, { error: "Token already used" });
+    // Claim the token atomically, so two racing requests can't both spend it.
+    // The marker only has to outlive the token; DynamoDB TTL deletes it later.
+    try {
+      await db.send(new PutCommand({
+        TableName: TABLE,
+        Item: { scoreId: `used_${checked.tokenId}`, ttl: Math.floor(Date.now() / 1000) + MAX_TOKEN_SECS },
+        ConditionExpression: "attribute_not_exists(scoreId)",
+      }));
+    } catch (e) {
+      if (e.name === "ConditionalCheckFailedException") return respond(403, { error: "Token already used" });
+      throw e;
+    }
 
     const now = new Date();
-    const dayKey = now.toISOString().slice(0, 10);
-    const weekKey = isoWeek(now);
     const scoreId = randomBytes(16).toString("hex");
-
-    // Mark token as used (TTL 10 min)
     await db.send(new PutCommand({
       TableName: TABLE,
-      Item: { scoreId: `used_${payload.id}`, ttl: Math.floor(Date.now() / 1000) + 600 },
-    }));
-
-    await db.send(new PutCommand({
-      TableName: TABLE,
-      Item: { scoreId, gameId: "dogchase", playerName: name, score, dog, squirrel, dayKey, weekKey, submittedAt: now.toISOString() },
+      Item: {
+        scoreId, gameId: "dogchase", ...checked.entry,
+        dayKey: now.toISOString().slice(0, 10), weekKey: isoWeek(now), submittedAt: now.toISOString(),
+      },
     }));
 
     return respond(201, { ok: true, scoreId });
@@ -103,7 +93,7 @@ export async function handler(event) {
   // ── GET /scores?period=alltime|weekly|daily&limit=10 ───────────────────────
   if (method === "GET" && path === "/scores") {
     const period = event.queryStringParameters?.period || "alltime";
-    const limit = Math.min(parseInt(event.queryStringParameters?.limit || "10"), 25);
+    const limit = Math.min(Math.max(parseInt(event.queryStringParameters?.limit, 10) || 10, 1), 25);
 
     let indexName, keyCondition, exprValues;
     if (period === "alltime") {
