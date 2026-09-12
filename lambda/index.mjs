@@ -3,6 +3,7 @@ import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-d
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { validateSubmission, MAX_TOKEN_SECS } from "./validate.mjs";
 import { corsHeaders } from "./cors.mjs";
+import { dailyDate, dailyDayKey } from "./shared.mjs";
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({ region: "us-east-1" }));
 const TABLE = "dogchase-scores";
@@ -71,18 +72,20 @@ export async function handler(event) {
 
     const now = new Date();
     const scoreId = randomBytes(16).toString("hex");
+    // Daily Chase rounds get their own day key, so they have their own board.
+    const dayKey = checked.dailyOn ? dailyDayKey(checked.dailyOn) : dailyDate(now);
     await db.send(new PutCommand({
       TableName: TABLE,
       Item: {
         scoreId, gameId: "dogchase", ...checked.entry,
-        dayKey: now.toISOString().slice(0, 10), weekKey: isoWeek(now), submittedAt: now.toISOString(),
+        dayKey, weekKey: isoWeek(now), submittedAt: now.toISOString(),
       },
     }));
 
     return respond(201, { ok: true, scoreId });
   }
 
-  // ── GET /scores?period=alltime|weekly|daily&limit=10 ───────────────────────
+  // ── GET /scores?period=alltime|weekly|daily|challenge&limit=10 ─────────────
   if (method === "GET" && path === "/scores") {
     const period = event.queryStringParameters?.period || "alltime";
     const limit = Math.min(Math.max(parseInt(event.queryStringParameters?.limit, 10) || 10, 1), 25);
@@ -94,14 +97,13 @@ export async function handler(event) {
       exprValues = { ":gid": "dogchase" };
     } else if (period === "weekly") {
       indexName = "week-index";
-      const wk = isoWeek(new Date());
       keyCondition = "weekKey = :wk";
-      exprValues = { ":wk": wk };
+      exprValues = { ":wk": isoWeek(new Date()) };
     } else {
+      // "challenge" is today's Daily Chase; "daily" is today's free play.
       indexName = "day-index";
-      const dk = new Date().toISOString().slice(0, 10);
       keyCondition = "dayKey = :dk";
-      exprValues = { ":dk": dk };
+      exprValues = { ":dk": period === "challenge" ? dailyDayKey(dailyDate()) : dailyDate() };
     }
 
     const result = await db.send(new QueryCommand({

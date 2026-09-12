@@ -341,6 +341,7 @@ class SelectScene extends Phaser.Scene {
       .on('pointerover', ()=>pbg.setAlpha(0.88))
       .on('pointerout',  ()=>pbg.setAlpha(1))
       .on('pointerdown', ()=>{
+        this.registry.set('daily', false);
         this.registry.set('dogIdx',this.dogIdx);
         this.registry.set('sqIdx', this.sqIdx);
         this.registry.set('bgIdx', this.bgIdx);
@@ -351,16 +352,37 @@ class SelectScene extends Phaser.Scene {
     this.add.text(W/2, y+PH+16, 'Drag finger or click to move  ·  WASD / arrows',
       {fontSize:'11px',fill:'#88AA80',fontFamily:FONT}).setOrigin(0.5).setDepth(2);
 
-    // Leaderboard link
+    // ── Bottom row: today's challenge, and the leaderboard ────────────────────
+    const rowY=y+PH+50;
+    const daily=dailySetup(dailyDate());
+
+    const dbg=this.add.graphics().setDepth(2);
+    drawBtn(dbg,24,rowY-16,200,32,16,0x2A1A38,0xCC99FF,0.5);
+    this.add.text(124,rowY,'📅  Daily Chase',
+      {fontSize:'13px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
+    this.add.rectangle(124,rowY,200,32,0,0).setDepth(4).setInteractive({useHandCursor:true})
+      .on('pointerdown',()=>{
+        this.registry.set('daily', true);
+        this.registry.set('dogIdx',daily.dogIdx);
+        this.registry.set('sqIdx', daily.sqIdx);
+        this.registry.set('bgIdx', daily.bgIdx);
+        this.cameras.main.fadeOut(280,0,0,0);
+        this.time.delayedCall(280,()=>this.scene.start('Game'));
+      });
+
     const lbg=this.add.graphics().setDepth(2);
-    drawBtn(lbg,W/2-80,y+PH+34,160,32,16,0x1A2A18,0xFFD766,0.35);
-    this.add.text(W/2,y+PH+50,'🏆  Leaderboard',
+    drawBtn(lbg,256,rowY-16,200,32,16,0x1A2A18,0xFFD766,0.35);
+    this.add.text(356,rowY,'🏆  Leaderboard',
       {fontSize:'13px',fill:'#FFD766',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
-    this.add.rectangle(W/2,y+PH+50,160,32,0,0).setDepth(4).setInteractive({useHandCursor:true})
+    this.add.rectangle(356,rowY,200,32,0,0).setDepth(4).setInteractive({useHandCursor:true})
       .on('pointerdown',()=>{
         this.cameras.main.fadeOut(260,0,0,0);
         this.time.delayedCall(260,()=>this.scene.start('Leaderboard'));
       });
+
+    // Everyone plays these three today, which is what makes the scores comparable.
+    this.add.text(W/2,rowY+26,`Today: ${DOGS[daily.dogIdx].name} · ${SQUIRRELS[daily.sqIdx].name} · ${BGS[daily.bgIdx].name}`,
+      {fontSize:'9px',fill:'#AEC8A2',fontFamily:FONT}).setOrigin(0.5).setDepth(3);
 
     // Privacy policy. Google Play requires a link inside the app, not just on the listing.
     // In the store app an outside link opens the phone's browser; on the web, a new tab.
@@ -404,9 +426,19 @@ class GameScene extends Phaser.Scene {
     this.sqCfg  = SQUIRRELS[this.registry.get('sqIdx')??0];
     this.bgIdx  = this.registry.get('bgIdx')??0;
     this.bgCfg  = BGS[this.bgIdx];
+    // Daily Chase: the same dog, squirrel, yard, starting spots and power-ups for
+    // everyone today. Seeding the randomness gives every player the same setup;
+    // where the squirrels run after that still varies.
+    this.daily = this.registry.get('daily')===true;
+    this.dailyOn = dailyDate();
+    const seed = this.daily ? String(dailySetup(this.dailyOn).seed) : String(Math.random());
+    this.rng = new Phaser.Math.RandomDataGenerator([seed]);
+    this.puRng = new Phaser.Math.RandomDataGenerator([seed+'-powerups']);
     this.cameras.main.fadeIn(350,0,0,0);
     this.buildWorld(); this.buildDog(); this.buildSquirrels();
     this.buildUI(); this.buildInput(); this.buildPowerups();
+    if(this.daily) this.add.text(W/2,32,'DAILY CHASE',
+      {fontSize:'10px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'bold',letterSpacing:2}).setOrigin(0.5,0).setDepth(11);
     this.score=0; this.combo=0; this.comboTimer=0;
     this.timeLeft=SECS; this.difficulty=1.0; this.over=false;
     this._sessionToken=null;
@@ -528,8 +560,9 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnSquirrel(i) {
+    // this.rng rather than Math.random: on a Daily Chase everyone starts the same.
     let x,y,ok,tries=0;
-    do{ ok=true; x=Phaser.Math.Between(55,W-55); y=Phaser.Math.Between(55,H-55);
+    do{ ok=true; x=this.rng.between(55,W-55); y=this.rng.between(55,H-55);
       for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*W,ny*H)<68){ok=false;break;}
       if(ok&&this.dog&&Phaser.Math.Distance.Between(x,y,this.dog.x,this.dog.y)<115) ok=false;
     }while(!ok&&++tries<60);
@@ -610,9 +643,10 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnPowerup() {
-    const cfg=POWERUPS[Phaser.Math.Between(0,POWERUPS.length-1)];
+    // Seeded as well, so a Daily Chase drops the same power-ups in the same spots.
+    const cfg=POWERUPS[this.puRng.between(0,POWERUPS.length-1)];
     let x,y,ok,tries=0;
-    do{ ok=true; x=Phaser.Math.Between(65,W-65); y=Phaser.Math.Between(85,H-65);
+    do{ ok=true; x=this.puRng.between(65,W-65); y=this.puRng.between(85,H-65);
       for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*W,ny*H)<78){ok=false;break;}
       if(ok&&this.dog&&Phaser.Math.Distance.Between(x,y,this.dog.x,this.dog.y)<90) ok=false;
     }while(!ok&&++tries<50);
@@ -832,6 +866,7 @@ class GameScene extends Phaser.Scene {
     d.catching=true;
     const sq=d.sprite,cx=sq.x,cy=sq.y;
     this.combo++; this.comboTimer=4;
+    this.bestCombo=Math.max(this.bestCombo||0,this.combo); // the streak worth sharing
     const tier=STREAKS[Math.min(this.combo,STREAKS.length-1)];
     const cMult=tier?tier.mult:1;
     const sMult=this.effects.x2>0?2:1;
@@ -867,7 +902,7 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({targets:sq,alpha:0,duration:80,yoyo:true,repeat:3,onComplete:()=>{
       sq.setAlpha(1); if(this.sqShads[i]) this.sqShads[i].setAlpha(0.12);
       let x,y,ok,tries=0;
-      do{ok=true;x=Phaser.Math.Between(55,W-55);y=Phaser.Math.Between(55,H-55);
+      do{ok=true;x=this.rng.between(55,W-55);y=this.rng.between(55,H-55);
         for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*W,ny*H)<68){ok=false;break;}
         if(ok&&Phaser.Math.Distance.Between(x,y,this.dog.x,this.dog.y)<135) ok=false;
       }while(!ok&&++tries<60);
@@ -883,6 +918,7 @@ class GameScene extends Phaser.Scene {
     if(newBest) localStorage.setItem('dogchase_hs',this.score);
     // Submit score to leaderboard (fire and forget — game over proceeds regardless)
     const playerName=localStorage.getItem('dogchase_name');
+    const streak=STREAKS[Math.min(this.bestCombo||0,STREAKS.length-1)]?.label||'';
     if(playerName&&this._sessionToken){
       fetch(`${API}/scores`,{
         method:'POST',
@@ -893,18 +929,21 @@ class GameScene extends Phaser.Scene {
           score:this.score,
           dog:this.dogCfg.name,
           squirrel:this.sqCfg.name,
+          mode:this.daily?'daily':'free',
         })
       }).catch(()=>{});
     }
     this.cameras.main.fadeOut(480,0,0,0);
-    this.time.delayedCall(480,()=>this.scene.start('GameOver',{score:this.score,hs:Math.max(this.score,hs),newBest,playerName}));
+    this.time.delayedCall(480,()=>this.scene.start('GameOver',
+      {score:this.score,hs:Math.max(this.score,hs),newBest,playerName,daily:this.daily,dailyOn:this.dailyOn,streak}));
   }
 }
 
 // ── Game Over ─────────────────────────────────────────────────────────────────
 class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOver'); }
-  init(d){this.final=d.score;this.hs=d.hs;this.newBest=d.newBest;this.playerName=d.playerName||'';}
+  init(d){this.final=d.score;this.hs=d.hs;this.newBest=d.newBest;this.playerName=d.playerName||'';
+    this.daily=!!d.daily;this.dailyOn=d.dailyOn;this.streak=d.streak||'';}
   create(){
     const bgIdx=this.registry.get('bgIdx')??0, b=BGS[bgIdx];
     this.cameras.main.fadeIn(480,0,0,0);
@@ -971,12 +1010,27 @@ class GameOverScene extends Phaser.Scene {
     pz.on('pointerover',()=>pbg.setAlpha(0.85)); pz.on('pointerout',()=>pbg.setAlpha(1));
     pz.on('pointerdown',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Game'));});
 
+    // After a Daily Chase the second row splits: a share line, and the way back.
+    const toMenu=()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Select'));};
     const sbg=this.add.graphics().setDepth(2);
-    drawBtn(sbg,W/2-112,502,224,44,22,0x444444,0xFFFFFF,0.2);
-    this.add.text(W/2,524,'CHANGE SETUP',
-      {fontSize:'17px',fill:'#DDD8C8',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
-    const sz=this.add.rectangle(W/2,524,224,44,0,0).setDepth(4).setInteractive({useHandCursor:true});
-    sz.on('pointerdown',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Select'));});
+    if(this.daily){
+      drawBtn(sbg,W/2-112,502,108,44,22,0x4A2A6A,0xCC99FF,0.5);
+      drawBtn(sbg,W/2+4,502,108,44,22,0x444444,0xFFFFFF,0.2);
+      this.shareTxt=this.add.text(W/2-58,524,'📋  SHARE',
+        {fontSize:'15px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
+      this.add.text(W/2+58,524,'MENU',
+        {fontSize:'15px',fill:'#DDD8C8',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
+      this.add.rectangle(W/2-58,524,108,44,0,0).setDepth(4).setInteractive({useHandCursor:true})
+        .on('pointerdown',()=>this._share());
+      this.add.rectangle(W/2+58,524,108,44,0,0).setDepth(4).setInteractive({useHandCursor:true})
+        .on('pointerdown',toMenu);
+    } else {
+      drawBtn(sbg,W/2-112,502,224,44,22,0x444444,0xFFFFFF,0.2);
+      this.add.text(W/2,524,'CHANGE SETUP',
+        {fontSize:'17px',fill:'#DDD8C8',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
+      this.add.rectangle(W/2,524,224,44,0,0).setDepth(4).setInteractive({useHandCursor:true})
+        .on('pointerdown',toMenu);
+    }
 
     // Leaderboard snippet — top 3 all-time
     const lbBox=this.add.graphics().setDepth(2);
@@ -987,7 +1041,8 @@ class GameOverScene extends Phaser.Scene {
     this.add.rectangle(W/2,582,W-44,56,0,0).setDepth(4).setInteractive({useHandCursor:true})
       .on('pointerdown',()=>{
         this.cameras.main.fadeOut(260,0,0,0);
-        this.time.delayedCall(260,()=>this.scene.start('Leaderboard',{highlightScore:this.final,highlightName:this.playerName}));
+        this.time.delayedCall(260,()=>this.scene.start('Leaderboard',
+          {highlightScore:this.final,highlightName:this.playerName,period:this.daily?'challenge':'alltime'}));
       });
     fetch(`${API}/scores?period=alltime&limit=3`).then(r=>r.json()).then(data=>{
       lbLoading.destroy();
@@ -1004,6 +1059,22 @@ class GameOverScene extends Phaser.Scene {
 
     this.input.keyboard.once('keydown-SPACE',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Game'));});
     this.input.keyboard.once('keydown-ENTER',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Game'));});
+  }
+
+  // Hand the day's result to whatever the player shares with: the phone's share
+  // sheet if it has one, otherwise the clipboard.
+  _share(){
+    const text=shareText({
+      dateStr:this.dailyOn,
+      dogName:DOGS[this.registry.get('dogIdx')??0].name,
+      squirrelName:SQUIRRELS[this.registry.get('sqIdx')??0].name,
+      score:this.final,
+      streak:this.streak,
+    });
+    const said=(msg)=>{ this.shareTxt.setText(msg); this.time.delayedCall(1800,()=>this.shareTxt.setText('📋  SHARE')); };
+    if(navigator.share) navigator.share({text}).then(()=>said('✓  SHARED')).catch(()=>{});
+    else if(navigator.clipboard) navigator.clipboard.writeText(text).then(()=>said('✓  COPIED')).catch(()=>said('COPY FAILED'));
+    else said('COPY FAILED');
   }
 }
 
@@ -1067,10 +1138,10 @@ class NameScene extends Phaser.Scene {
 // ── Leaderboard Scene ─────────────────────────────────────────────────────────
 class LeaderboardScene extends Phaser.Scene {
   constructor(){ super('Leaderboard'); }
-  init(d){ this.highlightScore=d?.highlightScore||null; this.highlightName=d?.highlightName||null; }
+  init(d){ this.highlightScore=d?.highlightScore||null; this.highlightName=d?.highlightName||null;
+    this.period=d?.period||'alltime'; } // a finished Daily Chase lands on the Daily board
   create(){
     this.cameras.main.fadeIn(320,0,0,0);
-    this.period='alltime';
     this._drawBg();
     this._buildUI();
     this._load();
@@ -1086,13 +1157,13 @@ class LeaderboardScene extends Phaser.Scene {
     this.add.text(W/2,36,'LEADERBOARD',{fontSize:'30px',fill:'#FFD766',fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5).setDepth(2);
 
     // Period tabs
-    const tabs=[['alltime','All‑Time'],['weekly','This Week'],['daily','Today']];
+    const tabs=[['challenge','Daily'],['daily','Today'],['weekly','Week'],['alltime','All‑Time']];
     this.tabBtns=[];
     tabs.forEach(([key,label],i)=>{
-      const x=80+i*160;
+      const x=60+i*120;
       const tbg=this.add.graphics().setDepth(2);
       const ttxt=this.add.text(x,76,label,{fontSize:'12px',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
-      const thit=this.add.rectangle(x,76,144,28,0,0).setDepth(4).setInteractive({useHandCursor:true})
+      const thit=this.add.rectangle(x,76,112,28,0,0).setDepth(4).setInteractive({useHandCursor:true})
         .on('pointerdown',()=>{ this.period=key; this._updateTabs(); this._load(); });
       this.tabBtns.push({key,tbg,ttxt,thit});
     });
@@ -1118,12 +1189,12 @@ class LeaderboardScene extends Phaser.Scene {
   _updateTabs(){
     this.tabBtns.forEach(({key,tbg,ttxt})=>{
       const sel=key===this.period;
-      const x=ttxt.x-72;
+      const x=ttxt.x-56;
       tbg.clear();
       tbg.fillStyle(sel?0xFFD766:0x334433,sel?0.28:0.08);
-      tbg.fillRoundedRect(x,62,144,28,8);
+      tbg.fillRoundedRect(x,62,112,28,8);
       tbg.lineStyle(2,sel?0xFFD766:0xFFFFFF,sel?0.9:0.15);
-      tbg.strokeRoundedRect(x,62,144,28,8);
+      tbg.strokeRoundedRect(x,62,112,28,8);
       ttxt.setStyle({fill:sel?'#FFD766':'#667766',fontFamily:FONT,fontStyle:'bold',fontSize:'12px'});
     });
   }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validateSubmission, MIN_GAME_SECS, MAX_TOKEN_SECS } from "./validate.mjs";
-import { genName, isValidName, ADJ, NOU } from "./shared.mjs";
+import { genName, isValidName, ADJ, NOU, DOG_NAMES, SQUIRREL_NAMES, dailyDate, dailySetup } from "./shared.mjs";
 
 const NOW = Date.UTC(2026, 8, 10, 12);
 const token = (secsAgo = 61) => ({ iat: NOW - secsAgo * 1000, id: "abc123" });
@@ -9,7 +9,8 @@ const good = () => ({ playerName: "SwiftCorgi42", score: 12, dog: "Corgi", squir
 const errorFor = (body, payload = token()) => validateSubmission(body, payload, NOW).error;
 
 test("accepts a normal game", () => {
-  assert.deepEqual(validateSubmission(good(), token(), NOW), { entry: good(), tokenId: "abc123" });
+  assert.deepEqual(validateSubmission(good(), token(), NOW),
+    { entry: { ...good(), mode: "free" }, tokenId: "abc123", dailyOn: null });
 });
 
 test("rejects typed-in names, including forms that were accepted before", () => {
@@ -46,6 +47,50 @@ test("rejects unsigned, malformed, early, and expired tokens", () => {
 test("rejects bodies that aren't objects", () => {
   assert.equal(errorFor(null), "Bad request");
   assert.equal(errorFor("SwiftCorgi42"), "Bad request");
+});
+
+test("a round with no mode is free play, as older versions send", () => {
+  const r = validateSubmission(good(), token(), NOW);
+  assert.equal(r.entry.mode, "free");
+  assert.equal(r.dailyOn, null);
+});
+
+test("rejects a mode we don't know", () => {
+  assert.equal(errorFor({ ...good(), mode: "practice" }), "Invalid mode");
+});
+
+test("a Daily Chase score must be played with the day's dog and squirrel", () => {
+  const today = dailyDate(new Date(NOW));
+  const setup = dailySetup(today);
+  const daily = { ...good(), mode: "daily", dog: DOG_NAMES[setup.dogIdx], squirrel: SQUIRREL_NAMES[setup.sqIdx] };
+
+  const accepted = validateSubmission(daily, token(), NOW);
+  assert.equal(accepted.dailyOn, today);
+  assert.equal(accepted.entry.mode, "daily");
+
+  assert.equal(errorFor({ ...daily, dog: DOG_NAMES.find(d => d !== daily.dog) }), "Not today's Daily Chase");
+  assert.equal(errorFor({ ...daily, squirrel: SQUIRREL_NAMES.find(s => s !== daily.squirrel) }), "Not today's Daily Chase");
+});
+
+test("yesterday's challenge counts just after midnight, but not all day", () => {
+  // A day whose challenge differs from the day before, so the two can't be confused.
+  let ms = Date.UTC(2026, 8, 13);
+  while (true) {
+    const today = dailySetup(dailyDate(new Date(ms)));
+    const yesterday = dailySetup(dailyDate(new Date(ms - 86400000)));
+    if (today.dogIdx !== yesterday.dogIdx || today.sqIdx !== yesterday.sqIdx) break;
+    ms += 86400000;
+  }
+  const yesterdayDate = dailyDate(new Date(ms - 86400000));
+  const setup = dailySetup(yesterdayDate);
+  const body = { ...good(), mode: "daily", dog: DOG_NAMES[setup.dogIdx], squirrel: SQUIRREL_NAMES[setup.sqIdx] };
+  const played = at => ({ iat: at - 61000, id: "abc123" });
+
+  const justAfterMidnight = ms + 5 * 60000;
+  assert.equal(validateSubmission(body, played(justAfterMidnight), justAfterMidnight).dailyOn, yesterdayDate);
+
+  const laterThatDay = ms + 9 * 3600000;
+  assert.equal(validateSubmission(body, played(laterThatDay), laterThatDay).error, "Not today's Daily Chase");
 });
 
 test("every generated name validates and fits the leaderboard row", () => {

@@ -48,6 +48,8 @@ The site is an installable PWA: `public/manifest.webmanifest` plus icons, and `d
 
 **Leaderboard names** are generated from the word lists in `lambda/shared.mjs`, never typed, because the board is public and the game appeals to kids. `build.mjs` inlines `shared.mjs` ahead of `game.js`, and the Lambda checks names, dogs, and squirrels against the same file. Only append words to the lists; removing one invalidates names players already have. When you add a dog or squirrel, add its name to `DOG_NAMES` / `SQUIRREL_NAMES` and redeploy the Lambda (`npm test` fails on a mismatch).
 
+**Daily Chase** lives in `lambda/shared.mjs`: the UTC date picks the day's dog, squirrel and yard, and seeds where squirrels and power-ups appear, so everyone plays the same round. Daily scores are stored under the day key `daily-<date>` and read back with `period=challenge`, which keeps them off the free-play boards, and the Lambda rejects a daily score played with the wrong dog or squirrel. The results screen offers the three-line summary from `shareText()`.
+
 **Backend:** API Gateway `kcgalwlhh3` (stage `prod`, throttled to 25 req/s, burst 50) → Lambda `dogchase-api` → DynamoDB `dogchase-scores` (TTL on `ttl` expires used session tokens).
 
 **Scene flow:** `BootScene` → `NameScene` (first run only) → `SelectScene` → `GameScene` → `GameOverScene`, plus `LeaderboardScene`.

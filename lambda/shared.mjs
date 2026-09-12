@@ -25,3 +25,58 @@ const NAME_RE = new RegExp(`^(${ADJ.join('|')})(${NOU.join('|')})([1-9][0-9]?)$`
 export function isValidName(name) {
   return typeof name === 'string' && NAME_RE.test(name);
 }
+
+// ── Daily Chase ───────────────────────────────────────────────────────────────
+// Everyone plays the same dog, squirrel and yard each day, so the day's scores
+// compare like for like. The game and the Lambda work it out from this file, so
+// a daily score played with the wrong dog can be rejected.
+
+export const WORLD_COUNT = 4; // BGS in src/game.js, kept in step by a test
+
+// UTC, so the challenge changes at the same moment everywhere.
+export function dailyDate(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+// FNV-1a over the date: a small, stable hash that gives the same answer everywhere.
+export function dailySeed(dateStr) {
+  let h = 2166136261;
+  for (let i = 0; i < dateStr.length; i++) {
+    h ^= dateStr.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+// Each choice hashes the date with its own label. Taking different bit slices of
+// a single hash rotated badly: one yard came up 46 days in 120, another twice.
+function pick(dateStr, what, count) {
+  return dailySeed(`${dateStr}:${what}`) % count;
+}
+
+export function dailySetup(dateStr) {
+  return {
+    seed: dailySeed(dateStr),
+    dogIdx: pick(dateStr, 'dog', DOG_NAMES.length),
+    sqIdx: pick(dateStr, 'squirrel', SQUIRREL_NAMES.length),
+    bgIdx: pick(dateStr, 'world', WORLD_COUNT),
+  };
+}
+
+// Daily runs live under their own day key, so they get their own board.
+export function dailyDayKey(dateStr) {
+  return `daily-${dateStr}`;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// The line players paste into a chat: short, and it says where to play.
+export function shareText({ dateStr, dogName, squirrelName, score, streak }) {
+  const parts = dateStr.split('-');
+  return [
+    `Dog Chase · Daily ${Number(parts[2])} ${MONTHS[Number(parts[1]) - 1]}`,
+    `🐕 ${dogName} vs 🐿️ ${squirrelName}`,
+    `${score} caught${streak ? ` · ${streak}` : ''}`,
+    'dogchase.eldoggosoftware.com',
+  ].join('\n');
+}

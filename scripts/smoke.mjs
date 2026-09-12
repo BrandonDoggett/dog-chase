@@ -56,6 +56,19 @@ await tapGame(480 - 34, 640 - 14); // Privacy link, bottom right of the pick scr
 check("pick screen links to the privacy policy", !!(await privacyRequest), "no request for /privacy.html");
 for (const p of context.pages()) if (p !== page) await p.close();
 
+// The Daily Chase starts the matchup the date picks, the same for every player.
+const todaysSetup = await page.evaluate(() => dailySetup(dailyDate()));
+await tapGame(124, 579);
+const started = await sceneActive("Game", 15000);
+const registry = await page.evaluate(() => ["daily", "dogIdx", "sqIdx", "bgIdx"]
+  .reduce((all, key) => ({ ...all, [key]: window.dogChase.registry.get(key) }), {}));
+check("Daily Chase starts today's matchup",
+  started && registry.daily === true && registry.dogIdx === todaysSetup.dogIdx
+    && registry.sqIdx === todaysSetup.sqIdx && registry.bgIdx === todaysSetup.bgIdx,
+  JSON.stringify({ registry, todaysSetup }));
+await page.waitForTimeout(600);
+await page.screenshot({ path: ".smoke/4-daily.png" });
+
 await page.reload();
 await sceneActive("Select");
 check("service worker controls the page after reload", await page.evaluate(() => !!navigator.serviceWorker.controller));
