@@ -1,4 +1,4 @@
-const W = 480, H = 640, SECS = 60, N_SQ = 5;
+const SECS = 60;
 const FONT = 'Nunito, Arial';
 const API = '__API_URL__';
 
@@ -6,6 +6,31 @@ const API = '__API_URL__';
 // blocks external requests and outgoing links: no leaderboard, no privacy link.
 const TARGET = '__TARGET__';
 const POKI = TARGET === 'poki';
+
+// Poki's desktop frame is 16:9 and a game has to fill it, so that build plays in
+// a wide yard on a wide screen and keeps the portrait yard on phones, which their
+// rules allow. The site and the apps stay portrait everywhere: their Daily Chase
+// boards are shared, and the same field for everyone is what makes scores compare.
+const LANDSCAPE = POKI && window.innerWidth >= window.innerHeight;
+
+// W and H are the menu design size, and every screen except the game is laid out
+// in it. FW and FH are the yard the game is played in, and the canvas size.
+// In portrait they're the same, so the site and the apps are unchanged.
+const W = 480, H = 640;
+const FW = LANDSCAPE ? 960 : 480, FH = LANDSCAPE ? 540 : 640;
+const SX = FW / 480, SY = FH / 640; // for yard decorations placed by hand
+// Squirrels scale with the size of the yard, so a wide one doesn't feel empty
+// and the chase keeps its pace. Portrait is 5, as it has always been.
+const N_SQ = Math.round(5 * (FW * FH) / (480 * 640));
+
+// On a wide canvas the menus zoom down to fit their column in the middle, and
+// their backgrounds spill either side rather than each screen being built twice.
+const MENU_ZOOM = LANDSCAPE ? FH / H : 1;
+const MENU_W = FW / MENU_ZOOM, MENU_H = FH / MENU_ZOOM;
+const MENU_X = W / 2 - MENU_W / 2, MENU_Y = H / 2 - MENU_H / 2;
+function menuCamera(scene) {
+  if (LANDSCAPE) { scene.cameras.main.setZoom(MENU_ZOOM); scene.cameras.main.centerOn(W / 2, H / 2); }
+}
 
 // Incognito mode can make storage throw on read or write, and Poki requires a
 // game to survive that. Go through these, never through localStorage directly.
@@ -250,6 +275,7 @@ class SelectScene extends Phaser.Scene {
   constructor() { super('Select'); }
 
   create() {
+    menuCamera(this);
     this.dogIdx = this.registry.get('dogIdx') ?? 0;
     this.sqIdx  = this.registry.get('sqIdx')  ?? 0;
     this.bgIdx  = this.registry.get('bgIdx')  ?? 0;
@@ -264,14 +290,14 @@ class SelectScene extends Phaser.Scene {
     // Warm sky gradient — menu-specific, not tied to game world
     const g = this.add.graphics().setDepth(0);
     g.fillGradientStyle(0x5588CC, 0x5588CC, 0x3A9060, 0x3A9060, 1);
-    g.fillRect(0,0,W,H);
+    g.fillRect(MENU_X,MENU_Y,MENU_W,MENU_H);
     // Subtle cloud puffs (decorative, not animated)
     g.fillStyle(0xFFFFFF,0.06);
     g.fillEllipse(80,55,130,38); g.fillEllipse(130,44,100,32); g.fillEllipse(105,62,80,26);
     g.fillEllipse(340,40,110,32); g.fillEllipse(385,32,90,26); g.fillEllipse(360,52,70,22);
     // Soft ground strip at bottom
-    g.fillStyle(0x2A6838,0.55); g.fillRect(0,H-44,W,44);
-    g.fillStyle(0x3A8848,0.4); g.fillRect(0,H-44,W,10);
+    g.fillStyle(0x2A6838,0.55); g.fillRect(MENU_X,H-44,MENU_W,44);
+    g.fillStyle(0x3A8848,0.4); g.fillRect(MENU_X,H-44,MENU_W,10);
   }
 
   _buildUI() {
@@ -515,6 +541,7 @@ class CustomiseScene extends Phaser.Scene {
   constructor(){ super('Customise'); }
 
   create(){
+    menuCamera(this);
     this.cameras.main.fadeIn(280,0,0,0);
     const mine=myDog(), base=DOGS[mine?mine.shape:0];
     this.cfg={shape:mine?mine.shape:0,
@@ -522,7 +549,7 @@ class CustomiseScene extends Phaser.Scene {
       ear:mine?mine.ear:base.ear,   snout:mine?mine.snout:base.snout};
 
     const bg=this.add.graphics();
-    bg.fillGradientStyle(0x2A2438,0x2A2438,0x16162A,0x16162A,1); bg.fillRect(0,0,W,H);
+    bg.fillGradientStyle(0x2A2438,0x2A2438,0x16162A,0x16162A,1); bg.fillRect(MENU_X,MENU_Y,MENU_W,MENU_H);
 
     this.add.text(W/2,20,'MAKE IT YOUR DOG',
       {fontSize:'22px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'900',stroke:'#000',strokeThickness:3}).setOrigin(0.5,0).setDepth(2);
@@ -647,7 +674,7 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.fadeIn(350,0,0,0);
     this.buildWorld(); this.buildDog(); this.buildSquirrels();
     this.buildUI(); this.buildInput(); this.buildPowerups();
-    if(this.daily) this.add.text(W/2,32,'DAILY CHASE',
+    if(this.daily) this.add.text(FW/2,32,'DAILY CHASE',
       {fontSize:'10px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'bold',letterSpacing:2}).setOrigin(0.5,0).setDepth(11);
     this.score=0; this.combo=0; this.comboTimer=0;
     this.timeLeft=SECS; this.difficulty=1.0; this.over=false;
@@ -667,15 +694,15 @@ class GameScene extends Phaser.Scene {
   buildWorld() {
     const b = this.bgCfg;
     const g = this.add.graphics().setDepth(0);
-    g.fillGradientStyle(b.gTop,b.gTop,b.gBot,b.gBot,1); g.fillRect(0,0,W,H);
+    g.fillGradientStyle(b.gTop,b.gTop,b.gBot,b.gBot,1); g.fillRect(0,0,FW,FH);
     const td = this.add.graphics().setDepth(1);
     td.fillStyle(0x000000,0.03);
-    for(let x=0;x<W;x+=44) for(let y=0;y<H;y+=44)
+    for(let x=0;x<FW;x+=44) for(let y=0;y<FH;y+=44)
       if((x/44+y/44)%2===0) td.fillRect(x,y,44,44);
     this.buildFence(b);
     this.trees = this.physics.add.staticGroup();
     TREES.forEach(([nx,ny])=>{
-      const t=this.trees.create(nx*W,ny*H,'tree_'+this.bgIdx);
+      const t=this.trees.create(nx*FW,ny*FH,'tree_'+this.bgIdx);
       t.setCircle(19,6,6); t.refreshBody();
     });
     this.startClouds(); this.startAmbient();
@@ -683,17 +710,17 @@ class GameScene extends Phaser.Scene {
 
   buildFence(b) {
     const f = this.add.graphics().setDepth(2);
-    f.lineStyle(14,0x000000,0.18); f.strokeRect(9,9,W-18,H-18);
-    f.lineStyle(9,b.fence,1); f.strokeRect(10,10,W-20,H-20);
-    f.lineStyle(2,0xFFFFFF,0.20); f.strokeRect(12,12,W-24,H-24);
-    for(let x=10;x<=W-10;x+=52){
-      f.fillStyle(b.fenceShad); f.fillRect(x-4,5,10,14); f.fillRect(x-4,H-19,10,14);
-      f.fillStyle(b.fence); f.fillRect(x-4,5,9,13); f.fillRect(x-4,H-19,9,13);
-      f.fillStyle(0xFFFFFF,0.16); f.fillRect(x-2,6,3,10); f.fillRect(x-2,H-18,3,10);
+    f.lineStyle(14,0x000000,0.18); f.strokeRect(9,9,FW-18,FH-18);
+    f.lineStyle(9,b.fence,1); f.strokeRect(10,10,FW-20,FH-20);
+    f.lineStyle(2,0xFFFFFF,0.20); f.strokeRect(12,12,FW-24,FH-24);
+    for(let x=10;x<=FW-10;x+=52){
+      f.fillStyle(b.fenceShad); f.fillRect(x-4,5,10,14); f.fillRect(x-4,FH-19,10,14);
+      f.fillStyle(b.fence); f.fillRect(x-4,5,9,13); f.fillRect(x-4,FH-19,9,13);
+      f.fillStyle(0xFFFFFF,0.16); f.fillRect(x-2,6,3,10); f.fillRect(x-2,FH-18,3,10);
     }
-    for(let y=62;y<=H-62;y+=52){
-      f.fillStyle(b.fenceShad); f.fillRect(5,y-4,14,10); f.fillRect(W-19,y-4,14,10);
-      f.fillStyle(b.fence); f.fillRect(5,y-4,13,9); f.fillRect(W-19,y-4,13,9);
+    for(let y=62;y<=FH-62;y+=52){
+      f.fillStyle(b.fenceShad); f.fillRect(5,y-4,14,10); f.fillRect(FW-19,y-4,14,10);
+      f.fillStyle(b.fence); f.fillRect(5,y-4,13,9); f.fillRect(FW-19,y-4,13,9);
     }
   }
 
@@ -709,7 +736,7 @@ class GameScene extends Phaser.Scene {
       cg.fillEllipse(sz*.55,0,sz*.65,sz*.38); cg.fillEllipse(sz*.28,sz*.06,sz*.5,sz*.28);
       cg.setPosition(-sz*0.8,y);
       const dur=Phaser.Math.Between(20000,34000);
-      this.tweens.add({targets:cg,x:W+sz,duration:dur,ease:'Linear',
+      this.tweens.add({targets:cg,x:FW+sz,duration:dur,ease:'Linear',
         onComplete:()=>{ cg.destroy(); if(!this.over) spawn(); }});
     };
     for(let i=0;i<3;i++) this.time.delayedCall(i*5000,spawn);
@@ -718,7 +745,7 @@ class GameScene extends Phaser.Scene {
   startAmbient() {
     const mote=(tint,minY,maxY,minD,maxD,sc)=>{
       if(this.over) return;
-      const x=Phaser.Math.Between(20,W-20), y=Phaser.Math.Between(minY,maxY);
+      const x=Phaser.Math.Between(20,FW-20), y=Phaser.Math.Between(minY,maxY);
       const m=this.add.image(x,y,'dot').setTint(tint)
         .setScale(Phaser.Math.FloatBetween(sc*.6,sc))
         .setAlpha(Phaser.Math.FloatBetween(0.15,0.45)).setDepth(3);
@@ -726,36 +753,36 @@ class GameScene extends Phaser.Scene {
         x:x+Phaser.Math.Between(-40,40),alpha:0,
         duration:Phaser.Math.Between(minD,maxD),onComplete:()=>m.destroy()});
     };
-    if(this.bgIdx===0) this.time.addEvent({delay:350,loop:true,callback:()=>{ if(!this.over) mote(0xFFDD44,200,H,4000,8000,0.22); }});
+    if(this.bgIdx===0) this.time.addEvent({delay:350,loop:true,callback:()=>{ if(!this.over) mote(0xFFDD44,200,FH,4000,8000,0.22); }});
     if(this.bgIdx===1){
       this.time.addEvent({delay:500,loop:true,callback:()=>{
         if(this.over) return;
-        const leaf=this.add.text(Phaser.Math.Between(20,W-20),-10,['🍂','🍁','🍃'][Phaser.Math.Between(0,2)],
+        const leaf=this.add.text(Phaser.Math.Between(20,FW-20),-10,['🍂','🍁','🍃'][Phaser.Math.Between(0,2)],
           {fontSize:`${Phaser.Math.Between(12,18)}px`}).setDepth(3).setAlpha(0.7);
-        this.tweens.add({targets:leaf,y:H+20,x:leaf.x+Phaser.Math.Between(-70,70),
+        this.tweens.add({targets:leaf,y:FH+20,x:leaf.x+Phaser.Math.Between(-70,70),
           angle:Phaser.Math.Between(-300,300),duration:Phaser.Math.Between(3500,6000),onComplete:()=>leaf.destroy()});
       }});
-      this.time.addEvent({delay:180,loop:true,callback:()=>{ if(!this.over) mote(0xFF8833,H-80,H,1200,3000,0.16); }});
+      this.time.addEvent({delay:180,loop:true,callback:()=>{ if(!this.over) mote(0xFF8833,FH-80,FH,1200,3000,0.16); }});
     }
     if(this.bgIdx===2) this.time.addEvent({delay:200,loop:true,callback:()=>{ if(!this.over) mote(0xDDEEFF,-10,0,3000,6000,0.28); }});
     if(this.bgIdx===3){
       this.time.addEvent({delay:650,loop:true,callback:()=>{
         if(this.over) return;
-        const x=Phaser.Math.Between(30,W-30),y=Phaser.Math.Between(100,H-100);
+        const x=Phaser.Math.Between(30,FW-30),y=Phaser.Math.Between(100,FH-100);
         const fly=this.add.image(x,y,'glow').setScale(0.3).setTint(0x88FF44).setAlpha(0).setDepth(3);
         this.tweens.add({targets:fly,alpha:0.6,duration:500,yoyo:true,repeat:Phaser.Math.Between(1,3),
           onComplete:()=>{ this.tweens.add({targets:fly,x:x+Phaser.Math.Between(-50,50),y:y+Phaser.Math.Between(-50,50),alpha:0,duration:700,onComplete:()=>fly.destroy()}); }});
       }});
       const fl2=['🌺','🌸','🌼','🌻'];
       [[55,90],[395,110],[70,500],[410,555],[230,205],[345,430]].forEach(([x,y])=>
-        this.add.text(x,y,fl2[Phaser.Math.Between(0,3)],{fontSize:`${Phaser.Math.Between(16,22)}px`}).setAlpha(0.65).setDepth(2));
+        this.add.text(x*SX,y*SY,fl2[Phaser.Math.Between(0,3)],{fontSize:`${Phaser.Math.Between(16,22)}px`}).setAlpha(0.65).setDepth(2));
     }
   }
 
   buildDog() {
     const key=dogTextureFor(this.registry.get('dogIdx')??0);
-    this.dogShad=this.add.ellipse(W/2,H/2+12,44,12,0x000000,0.15).setDepth(3);
-    this.dog=this.physics.add.image(W/2,H/2,key).setDepth(5);
+    this.dogShad=this.add.ellipse(FW/2,FH/2+12,44,12,0x000000,0.15).setDepth(3);
+    this.dog=this.physics.add.image(FW/2,FH/2,key).setDepth(5);
     this.dog.setCollideWorldBounds(true); this.dog.setCircle(16,16,10);
     this.dog.setDrag(820); this.dog.setMaxVelocity(this.dogCfg.speed*2);
     this.physics.add.collider(this.dog,this.trees);
@@ -773,8 +800,8 @@ class GameScene extends Phaser.Scene {
   spawnSquirrel(i) {
     // this.rng rather than Math.random: on a Daily Chase everyone starts the same.
     let x,y,ok,tries=0;
-    do{ ok=true; x=this.rng.between(55,W-55); y=this.rng.between(55,H-55);
-      for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*W,ny*H)<68){ok=false;break;}
+    do{ ok=true; x=this.rng.between(55,FW-55); y=this.rng.between(55,FH-55);
+      for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*FW,ny*FH)<68){ok=false;break;}
       if(ok&&this.dog&&Phaser.Math.Distance.Between(x,y,this.dog.x,this.dog.y)<115) ok=false;
     }while(!ok&&++tries<60);
     const shad=this.add.ellipse(x,y+9,32,9,0x000000,0.12).setDepth(3); this.sqShads[i]=shad;
@@ -787,27 +814,28 @@ class GameScene extends Phaser.Scene {
 
   buildUI() {
     const tb=this.add.graphics().setDepth(10);
-    tb.fillStyle(0x000000,0.48); tb.fillRect(0,0,W,48);
-    tb.lineStyle(1,0xFFFFFF,0.1); tb.lineBetween(0,48,W,48);
+    tb.fillStyle(0x000000,0.48); tb.fillRect(0,0,FW,48);
+    tb.lineStyle(1,0xFFFFFF,0.1); tb.lineBetween(0,48,FW,48);
     this.scoreTxt=this.add.text(18,8,'Score: 0',
       {fontSize:'23px',fill:'#FFF5DD',stroke:'#000',strokeThickness:3,fontFamily:FONT,fontStyle:'900'}).setDepth(11);
-    this.timerTxt=this.add.text(W-18,8,'1:00',
+    this.timerTxt=this.add.text(FW-18,8,'1:00',
       {fontSize:'23px',fill:'#FFF5DD',stroke:'#000',strokeThickness:3,fontFamily:FONT,fontStyle:'900'}).setOrigin(1,0).setDepth(11);
-    this.comboTxt=this.add.text(W/2,10,'',
+    this.comboTxt=this.add.text(FW/2,10,'',
       {fontSize:'18px',fill:'#FFD766',stroke:'#000',strokeThickness:3,fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5,0).setDepth(11).setAlpha(0);
-    this.barkTxt=this.add.text(W/2,58,'',{fontSize:'28px'}).setOrigin(0.5).setDepth(12).setAlpha(0);
+    this.barkTxt=this.add.text(FW/2,58,'',{fontSize:'28px'}).setOrigin(0.5).setDepth(12).setAlpha(0);
     const bb=this.add.graphics().setDepth(10);
-    bb.fillStyle(0x000000,0.42); bb.fillRect(0,H-38,W,38);
-    bb.lineStyle(1,0xFFFFFF,0.1); bb.lineBetween(0,H-38,W,H-38);
+    bb.fillStyle(0x000000,0.42); bb.fillRect(0,FH-38,FW,38);
+    bb.lineStyle(1,0xFFFFFF,0.1); bb.lineBetween(0,FH-38,FW,FH-38);
     this.effectSlots=[];
     for(let i=0;i<6;i++){
-      const x=40+i*72;
+      // Six slots in a row, left-aligned in portrait and centred in the wide yard.
+      const x=LANDSCAPE?FW/2-180+i*72:40+i*72;
       const bg=this.add.graphics().setDepth(11).setVisible(false);
-      const txt=this.add.text(x,H-22,'',{fontSize:'11px',fill:'#fff',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(12).setVisible(false);
+      const txt=this.add.text(x,FH-22,'',{fontSize:'11px',fill:'#fff',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(12).setVisible(false);
       const bar=this.add.graphics().setDepth(12).setVisible(false);
       this.effectSlots.push({bg,txt,bar,x});
     }
-    this.announceTxt=this.add.text(W/2,H/2-55,'',
+    this.announceTxt=this.add.text(FW/2,FH/2-55,'',
       {fontSize:'34px',fill:'#fff',stroke:'#000',strokeThickness:6,fontFamily:FONT,fontStyle:'900',align:'center'})
       .setOrigin(0.5).setDepth(30).setAlpha(0);
   }
@@ -857,8 +885,8 @@ class GameScene extends Phaser.Scene {
     // Seeded as well, so a Daily Chase drops the same power-ups in the same spots.
     const cfg=POWERUPS[this.puRng.between(0,POWERUPS.length-1)];
     let x,y,ok,tries=0;
-    do{ ok=true; x=this.puRng.between(65,W-65); y=this.puRng.between(85,H-65);
-      for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*W,ny*H)<78){ok=false;break;}
+    do{ ok=true; x=this.puRng.between(65,FW-65); y=this.puRng.between(85,FH-65);
+      for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*FW,ny*FH)<78){ok=false;break;}
       if(ok&&this.dog&&Phaser.Math.Distance.Between(x,y,this.dog.x,this.dog.y)<90) ok=false;
     }while(!ok&&++tries<50);
     const g3=this.add.image(x,y,'glow').setScale(0.88).setTint(cfg.color).setAlpha(0.06).setDepth(5);
@@ -954,12 +982,12 @@ class GameScene extends Phaser.Scene {
         const cfg=POWERUPS.find(p=>p.key===key);
         const pct=this.effects[key]/cfg.duration;
         sl.bg.setVisible(true).clear();
-        sl.bg.fillStyle(cfg.bg,0.88); sl.bg.fillRoundedRect(sl.x-31,H-35,62,24,8);
-        sl.bg.lineStyle(1.5,cfg.color,0.7); sl.bg.strokeRoundedRect(sl.x-31,H-35,62,24,8);
+        sl.bg.fillStyle(cfg.bg,0.88); sl.bg.fillRoundedRect(sl.x-31,FH-35,62,24,8);
+        sl.bg.lineStyle(1.5,cfg.color,0.7); sl.bg.strokeRoundedRect(sl.x-31,FH-35,62,24,8);
         sl.txt.setVisible(true).setText(`${cfg.emoji} ${Math.ceil(this.effects[key])}s`);
         sl.bar.setVisible(true).clear();
-        sl.bar.fillStyle(0x000000,0.3); sl.bar.fillRoundedRect(sl.x-28,H-14,56,4,2);
-        sl.bar.fillStyle(cfg.color,0.9); sl.bar.fillRoundedRect(sl.x-28,H-14,56*pct,4,2);
+        sl.bar.fillStyle(0x000000,0.3); sl.bar.fillRoundedRect(sl.x-28,FH-14,56,4,2);
+        sl.bar.fillStyle(cfg.color,0.9); sl.bar.fillRoundedRect(sl.x-28,FH-14,56*pct,4,2);
       } else {
         sl.bg.setVisible(false).clear(); sl.txt.setVisible(false); sl.bar.setVisible(false).clear();
       }
@@ -1113,8 +1141,8 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({targets:sq,alpha:0,duration:80,yoyo:true,repeat:3,onComplete:()=>{
       sq.setAlpha(1); if(this.sqShads[i]) this.sqShads[i].setAlpha(0.12);
       let x,y,ok,tries=0;
-      do{ok=true;x=this.rng.between(55,W-55);y=this.rng.between(55,H-55);
-        for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*W,ny*H)<68){ok=false;break;}
+      do{ok=true;x=this.rng.between(55,FW-55);y=this.rng.between(55,FH-55);
+        for(const[nx,ny]of TREES) if(Phaser.Math.Distance.Between(x,y,nx*FW,ny*FH)<68){ok=false;break;}
         if(ok&&Phaser.Math.Distance.Between(x,y,this.dog.x,this.dog.y)<135) ok=false;
       }while(!ok&&++tries<60);
       sq.setPosition(x,y); sq.setVelocity(0,0); d.catching=false;
@@ -1157,11 +1185,12 @@ class GameOverScene extends Phaser.Scene {
   init(d){this.final=d.score;this.hs=d.hs;this.newBest=d.newBest;this.playerName=d.playerName||'';
     this.daily=!!d.daily;this.dailyOn=d.dailyOn;this.streak=d.streak||'';}
   create(){
+    menuCamera(this);
     const bgIdx=this.registry.get('bgIdx')??0, b=BGS[bgIdx];
     this.cameras.main.fadeIn(480,0,0,0);
     const g=this.add.graphics();
-    g.fillGradientStyle(b.gTop,b.gTop,b.gBot,b.gBot,1); g.fillRect(0,0,W,H);
-    g.fillStyle(0x000000,0.52); g.fillRect(0,0,W,H);
+    g.fillGradientStyle(b.gTop,b.gTop,b.gBot,b.gBot,1); g.fillRect(MENU_X,MENU_Y,MENU_W,MENU_H);
+    g.fillStyle(0x000000,0.52); g.fillRect(MENU_X,MENU_Y,MENU_W,MENU_H);
     const cg=this.add.graphics().setDepth(1);
     cg.fillStyle(0x1A1A1A,0.6); cg.fillRoundedRect(22,28,W-44,H-56,18);
     cg.lineStyle(2,0xFFD766,0.55); cg.strokeRoundedRect(22,28,W-44,H-56,18);
@@ -1304,9 +1333,10 @@ class GameOverScene extends Phaser.Scene {
 class NameScene extends Phaser.Scene {
   constructor(){ super('Name'); }
   create(){
+    menuCamera(this);
     this.cameras.main.fadeIn(300,0,0,0);
     const g=this.add.graphics();
-    g.fillStyle(0x0d1117,1); g.fillRect(0,0,W,H);
+    g.fillStyle(0x0d1117,1); g.fillRect(MENU_X,MENU_Y,MENU_W,MENU_H);
     const cg=this.add.graphics().setDepth(1);
     cg.fillStyle(0x1A1A2E,0.95); cg.fillRoundedRect(W/2-170,H/2-170,340,320,18);
     cg.lineStyle(2,0xFFD766,0.6); cg.strokeRoundedRect(W/2-170,H/2-170,340,320,18);
@@ -1357,6 +1387,7 @@ class LeaderboardScene extends Phaser.Scene {
   init(d){ this.highlightScore=d?.highlightScore||null; this.highlightName=d?.highlightName||null;
     this.period=d?.period||'alltime'; } // a finished Daily Chase lands on the Daily board
   create(){
+    menuCamera(this);
     this.cameras.main.fadeIn(320,0,0,0);
     this._drawBg();
     this._buildUI();
@@ -1364,8 +1395,8 @@ class LeaderboardScene extends Phaser.Scene {
   }
   _drawBg(){
     const g=this.add.graphics().setDepth(0);
-    g.fillGradientStyle(0x0d1117,0x0d1117,0x1A2A18,0x1A2A18,1); g.fillRect(0,0,W,H);
-    g.fillStyle(0xFFD766,0.04); g.fillRect(0,0,W,H);
+    g.fillGradientStyle(0x0d1117,0x0d1117,0x1A2A18,0x1A2A18,1); g.fillRect(MENU_X,MENU_Y,MENU_W,MENU_H);
+    g.fillStyle(0xFFD766,0.04); g.fillRect(MENU_X,MENU_Y,MENU_W,MENU_H);
   }
   _buildUI(){
     // Title
@@ -1460,7 +1491,7 @@ Promise.race([fontsReady,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then
   backgroundColor:'#0d1117',
   parent:'game',
   dom:{ createContainer:true }, // the name field on the Make it your dog screen
-  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:W,height:H},
+  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:FW,height:FH},
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
   scene:[BootScene,NameScene,SelectScene,CustomiseScene,GameScene,GameOverScene,LeaderboardScene],
 }); });

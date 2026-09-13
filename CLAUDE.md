@@ -44,7 +44,9 @@ The store app wraps the same `dist/` build with Capacitor 8 in `android/`. The a
 
 `npm run build:poki` writes `dist-poki/`. Poki block every external request and forbid outgoing links, so that build drops the leaderboard, the privacy link, the manifest and the service worker, and loads their SDK instead. The game reaches the SDK only through the `poki*` helpers in `src/game.js`, which do nothing in other builds, so a missing or blocked SDK can't stop the game. `test/poki-build.test.mjs` runs the build and fails if any of that leaks back in.
 
-Before submitting, two things are still missing: a 16:9 layout (their frame is landscape, ours is a 3:4 portrait yard) and static plus animated thumbnails. The pitch itself is drafted in `store/poki-pitch.md`.
+**Two sizes.** `W`/`H` (480x640) is the menu design size, and every screen except the game is laid out in it. `FW`/`FH` is the yard and the canvas: 960x540 when the Poki build starts on a wide screen, 480x640 everywhere else, including Poki on a phone, which their rules allow. On a wide canvas `menuCamera()` zooms the menus to fit their column and their backgrounds spill to the edges (`MENU_X`/`MENU_Y`/`MENU_W`/`MENU_H`), rather than every screen being built twice. Squirrel count scales with the yard's area, so the wide one doesn't feel empty. In portrait all of this collapses to the old numbers, so the site and the apps are untouched.
+
+Still missing before submitting: static and animated thumbnails. The pitch itself is drafted in `store/poki-pitch.md`.
 
 ## Architecture
 
