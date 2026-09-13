@@ -45,9 +45,33 @@ export function cleanDogName(raw) {
 
 export const WORLD_COUNT = 4; // BGS in src/game.js, kept in step by a test
 
-// UTC, so the challenge changes at the same moment everywhere.
+// The challenge changes at the same moment everywhere, and that moment is
+// midnight Central, because that's where the players are. Keep the zone, never a
+// fixed offset: Central is UTC-5 in summer and UTC-6 in winter, so a hardcoded
+// offset would quietly start turning the day over at 11pm every November.
+// See docs/adr/0001-daily-chase-turns-over-at-midnight-central.md.
+export const DAILY_ZONE = 'America/Chicago';
+
+const DAY_PARTS = new Intl.DateTimeFormat('en-US', {
+  timeZone: DAILY_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+function zoned(now) {
+  const parts = {};
+  for (const { type, value } of DAY_PARTS.formatToParts(now)) parts[type] = value;
+  return parts;
+}
+
 export function dailyDate(now = new Date()) {
-  return now.toISOString().slice(0, 10);
+  const { year, month, day } = zoned(now);
+  return `${year}-${month}-${day}`;
+}
+
+// How far into the local day we are, for the grace window just after midnight.
+export function minutesIntoDay(now = new Date()) {
+  const { hour, minute } = zoned(now);
+  return Number(hour) * 60 + Number(minute);
 }
 
 // FNV-1a over the date: a small, stable hash that gives the same answer everywhere.

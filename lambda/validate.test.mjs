@@ -73,8 +73,9 @@ test("a Daily Chase score must be played with the day's dog and squirrel", () =>
 });
 
 test("yesterday's challenge counts just after midnight, but not all day", () => {
-  // A day whose challenge differs from the day before, so the two can't be confused.
-  let ms = Date.UTC(2026, 8, 13);
+  // Midnight Central, which in summer is 05:00 UTC. Walk forward to a day whose
+  // challenge differs from the day before, so the two can't be confused.
+  let ms = Date.parse("2026-09-13T05:00:00Z");
   while (true) {
     const today = dailySetup(dailyDate(new Date(ms)));
     const yesterday = dailySetup(dailyDate(new Date(ms - 86400000)));

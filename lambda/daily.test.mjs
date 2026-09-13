@@ -1,10 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dailyDate, dailySetup, dailyDayKey, shareText, DOG_NAMES, SQUIRREL_NAMES, WORLD_COUNT } from "./shared.mjs";
+import { dailyDate, minutesIntoDay, dailySetup, dailyDayKey, shareText, DOG_NAMES, SQUIRREL_NAMES, WORLD_COUNT } from "./shared.mjs";
 
-test("the day turns over at midnight UTC, everywhere at once", () => {
-  assert.equal(dailyDate(new Date("2026-09-12T23:59:59Z")), "2026-09-12");
-  assert.equal(dailyDate(new Date("2026-09-13T00:00:01Z")), "2026-09-13");
+test("the day turns over at midnight Central, everywhere at once", () => {
+  assert.equal(dailyDate(new Date("2026-09-13T04:59:00Z")), "2026-09-12"); // 23:59 Central
+  assert.equal(dailyDate(new Date("2026-09-13T05:00:00Z")), "2026-09-13"); // 00:00 Central
+  assert.equal(minutesIntoDay(new Date("2026-09-13T05:05:00Z")), 5);
+});
+
+test("the turnover follows Central's clock changes, not a fixed offset", () => {
+  // Central is UTC-5 in summer and UTC-6 after 1 November. Hardcoding -5 would
+  // turn the day over at 11pm all winter, and these two lines would fail.
+  assert.equal(dailyDate(new Date("2026-11-15T05:59:00Z")), "2026-11-14"); // 23:59 Central
+  assert.equal(dailyDate(new Date("2026-11-15T06:00:00Z")), "2026-11-15"); // 00:00 Central
+  assert.equal(minutesIntoDay(new Date("2026-11-15T06:05:00Z")), 5);
 });
 
 test("a date always gives the same setup, and always a real dog, squirrel and yard", () => {

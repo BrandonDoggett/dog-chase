@@ -1,4 +1,4 @@
-import { isValidName, DOG_NAMES, SQUIRREL_NAMES, dailyDate, dailySetup } from "./shared.mjs";
+import { isValidName, DOG_NAMES, SQUIRREL_NAMES, dailyDate, dailySetup, minutesIntoDay } from "./shared.mjs";
 
 export const MAX_SCORE = 150;      // best real score so far is 103 (May 2026)
 export const MIN_GAME_SECS = 58;   // a round is 60s; small allowance for latency
@@ -31,14 +31,14 @@ export function validateSubmission(body, payload, nowMs) {
   if (mode !== "free" && mode !== "daily") return { status: 400, error: "Invalid mode" };
 
   // A Daily Chase score only counts if it was played with the day's dog and
-  // squirrel. A round can start before midnight UTC and finish after it, so
+  // squirrel. A round can start before midnight and finish after it, so
   // yesterday's challenge counts for a few minutes into the new day — but only
   // that long, or yesterday's board could be padded all day.
   let dailyOn = null;
   if (mode === "daily") {
     const now = new Date(nowMs);
     const dates = [dailyDate(now)];
-    if (now.getUTCHours() === 0 && now.getUTCMinutes() < MIDNIGHT_GRACE_MINS)
+    if (minutesIntoDay(now) < MIDNIGHT_GRACE_MINS)
       dates.push(dailyDate(new Date(nowMs - DAY_MS)));
     dailyOn = dates.find(date => {
       const setup = dailySetup(date);
