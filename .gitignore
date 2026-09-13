@@ -2,5 +2,6 @@ index_a.html
 node_modules/
 lambda/function.zip
 dist/
+dist-poki/
 .smoke/
 .env

@@ -2,6 +2,32 @@ const W = 480, H = 640, SECS = 60, N_SQ = 5;
 const FONT = 'Nunito, Arial';
 const API = '__API_URL__';
 
+// 'web' for the site and the store apps, 'poki' for the build on Poki, which
+// blocks external requests and outgoing links: no leaderboard, no privacy link.
+const TARGET = '__TARGET__';
+const POKI = TARGET === 'poki';
+
+// Incognito mode can make storage throw on read or write, and Poki requires a
+// game to survive that. Go through these, never through localStorage directly.
+function lsGet(key) { try { return window.localStorage.getItem(key); } catch { return null; } }
+function lsSet(key, value) { try { window.localStorage.setItem(key, value); } catch { /* incognito */ } }
+
+// Poki's SDK exists only in their build. Everywhere else these do nothing.
+const pokiSdk = () => (POKI && typeof PokiSDK !== 'undefined') ? PokiSDK : null;
+function pokiLoaded() {
+  const sdk = pokiSdk();
+  if (sdk) try { sdk.init().then(() => sdk.gameLoadingFinished()).catch(() => {}); } catch { /* play on */ }
+}
+function pokiPlayStart() { const sdk = pokiSdk(); if (sdk) try { sdk.gameplayStart(); } catch { /* play on */ } }
+function pokiPlayStop()  { const sdk = pokiSdk(); if (sdk) try { sdk.gameplayStop();  } catch { /* play on */ } }
+// An ad between rounds, if Poki wants one. The callback always runs.
+function pokiAdThen(go) {
+  const sdk = pokiSdk();
+  if (!sdk) return go();
+  try { const ad = sdk.commercialBreak(); ad && ad.then ? ad.then(go).catch(go) : go(); }
+  catch { go(); }
+}
+
 const DOGS = [
   { name:'Aussie Doxie',    speed:148, catch:27, sStars:3, rStars:3, desc:'Balanced all-rounder',       body:0x9B5E2A, patch:0xF5ECD7, ear:0x4E2206, snout:0xC8864A },
   { name:'Golden Retriever',speed:142, catch:38, sStars:3, rStars:4, desc:'Wide reach, steady pace',    body:0xD4962A, patch:0xF0D060, ear:0xA06818, snout:0xB86830 },
@@ -61,7 +87,7 @@ const CARD_X=[60,180,300,420]; // centres for a row of four cards across W=480
 
 function myDog(){
   try{
-    const saved=JSON.parse(localStorage.getItem(MY_DOG_KEY));
+    const saved=JSON.parse(lsGet(MY_DOG_KEY));
     if(!saved||typeof saved!=='object') return null;
     const shape=Number.isInteger(saved.shape)&&DOGS[saved.shape]?saved.shape:0;
     return {...DOGS[shape],
@@ -203,9 +229,10 @@ class BootScene extends Phaser.Scene {
     sp.fillStyle(0xFFFFFF,1); sp.fillCircle(5,5,5);
     sp.generateTexture('dot',10,10); sp.destroy();
 
+    pokiLoaded(); // everything is drawn and the game can be played
     this.cameras.main.fadeIn(400,0,0,0);
     // Typed names from older versions no longer count; those players pick a generated one
-    const hasName=isValidName(localStorage.getItem('dogchase_name'));
+    const hasName=isValidName(lsGet('dogchase_name'));
     this.time.delayedCall(400,()=>this.scene.start(hasName?'Select':'Name'));
   }
 }
@@ -248,7 +275,7 @@ class SelectScene extends Phaser.Scene {
   }
 
   _buildUI() {
-    const hs = localStorage.getItem('dogchase_hs')||0;
+    const hs = lsGet('dogchase_hs')||0;
     // Even card centres — 6px margins, 8px gaps, 108px cards
     const CX = [60, 180, 300, 420];
     const CHW = 54; // half-width
@@ -410,11 +437,13 @@ class SelectScene extends Phaser.Scene {
     const rowY=y+PH+50;
     const daily=dailySetup(dailyDate());
 
+    // Poki's build has no leaderboard, so the daily button takes the whole row.
+    const dailyX=POKI?W/2:124;
     const dbg=this.add.graphics().setDepth(2);
-    drawBtn(dbg,24,rowY-16,200,32,16,0x2A1A38,0xCC99FF,0.5);
-    this.add.text(124,rowY,'📅  Daily Chase',
+    drawBtn(dbg,dailyX-100,rowY-16,200,32,16,0x2A1A38,0xCC99FF,0.5);
+    this.add.text(dailyX,rowY,'📅  Daily Chase',
       {fontSize:'13px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
-    this.add.rectangle(124,rowY,200,32,0,0).setDepth(4).setInteractive({useHandCursor:true})
+    this.add.rectangle(dailyX,rowY,200,32,0,0).setDepth(4).setInteractive({useHandCursor:true})
       .on('pointerdown',()=>{
         this.registry.set('daily', true);
         this.registry.set('dogIdx',daily.dogIdx);
@@ -424,28 +453,33 @@ class SelectScene extends Phaser.Scene {
         this.time.delayedCall(280,()=>this.scene.start('Game'));
       });
 
-    const lbg=this.add.graphics().setDepth(2);
-    drawBtn(lbg,256,rowY-16,200,32,16,0x1A2A18,0xFFD766,0.35);
-    this.add.text(356,rowY,'🏆  Leaderboard',
-      {fontSize:'13px',fill:'#FFD766',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
-    this.add.rectangle(356,rowY,200,32,0,0).setDepth(4).setInteractive({useHandCursor:true})
-      .on('pointerdown',()=>{
-        this.cameras.main.fadeOut(260,0,0,0);
-        this.time.delayedCall(260,()=>this.scene.start('Leaderboard'));
-      });
+    if(!POKI){
+      const lbg=this.add.graphics().setDepth(2);
+      drawBtn(lbg,256,rowY-16,200,32,16,0x1A2A18,0xFFD766,0.35);
+      this.add.text(356,rowY,'🏆  Leaderboard',
+        {fontSize:'13px',fill:'#FFD766',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
+      this.add.rectangle(356,rowY,200,32,0,0).setDepth(4).setInteractive({useHandCursor:true})
+        .on('pointerdown',()=>{
+          this.cameras.main.fadeOut(260,0,0,0);
+          this.time.delayedCall(260,()=>this.scene.start('Leaderboard'));
+        });
+    }
 
     // Everyone plays these three today, which is what makes the scores comparable.
     this.add.text(W/2,rowY+26,`Today: ${DOGS[daily.dogIdx].name} · ${SQUIRRELS[daily.sqIdx].name} · ${BGS[daily.bgIdx].name}`,
       {fontSize:'9px',fill:'#AEC8A2',fontFamily:FONT}).setOrigin(0.5).setDepth(3);
 
-    // Privacy policy. Google Play requires a link inside the app, not just on the listing.
-    // In the store app an outside link opens the phone's browser; on the web, a new tab.
-    this.add.text(W-12,H-14,'Privacy',{fontSize:'10px',fill:'#CFE8C8',fontFamily:FONT}).setOrigin(1,0.5).setDepth(3).setAlpha(0.8);
-    this.add.rectangle(W-34,H-14,72,28,0,0).setDepth(4).setInteractive({useHandCursor:true})
-      .on('pointerdown',()=>{
-        const url='https://dogchase.eldoggosoftware.com/privacy.html';
-        if(window.Capacitor) location.href=url; else window.open(url,'_blank','noopener');
-      });
+    // Privacy policy. Google Play requires a link inside the app, not just on the
+    // listing. In the store app an outside link opens the phone's browser; on the
+    // web, a new tab. Poki forbids outgoing links, so its build carries none.
+    if(!POKI){
+      this.add.text(W-12,H-14,'Privacy',{fontSize:'10px',fill:'#CFE8C8',fontFamily:FONT}).setOrigin(1,0.5).setDepth(3).setAlpha(0.8);
+      this.add.rectangle(W-34,H-14,72,28,0,0).setDepth(4).setInteractive({useHandCursor:true})
+        .on('pointerdown',()=>{
+          const url='https://dogchase.eldoggosoftware.com/privacy.html';
+          if(window.Capacitor) location.href=url; else window.open(url,'_blank','noopener');
+        });
+    }
   }
 
   _card(g, x, y, w, h, selected) {
@@ -579,7 +613,7 @@ class CustomiseScene extends Phaser.Scene {
 
   _save(){
     const name=cleanDogName(this.nameInput.getChildByID('dogName').value);
-    localStorage.setItem(MY_DOG_KEY,JSON.stringify({...this.cfg,name}));
+    lsSet(MY_DOG_KEY,JSON.stringify({...this.cfg,name}));
     const mine=myDog();
     if(mine) makeDogTexture(this,mine,'dog_my');
     this.registry.set('daily',false);
@@ -618,7 +652,8 @@ class GameScene extends Phaser.Scene {
     this.score=0; this.combo=0; this.comboTimer=0;
     this.timeLeft=SECS; this.difficulty=1.0; this.over=false;
     this._sessionToken=null;
-    fetch(`${API}/session`).then(r=>r.json()).then(d=>{ this._sessionToken=d.token; }).catch(()=>{});
+    if(!POKI) fetch(`${API}/session`).then(r=>r.json()).then(d=>{ this._sessionToken=d.token; }).catch(()=>{});
+    pokiPlayStart();
     this.time.addEvent({delay:1000,loop:true,callback:()=>{
       if(this.over) return;
       this.timeLeft=Math.max(0,this.timeLeft-1);
@@ -1089,13 +1124,14 @@ class GameScene extends Phaser.Scene {
 
   async endGame(){
     if(this.over) return; this.over=true;
-    const hs=parseInt(localStorage.getItem('dogchase_hs')||0);
+    const hs=parseInt(lsGet('dogchase_hs')||0);
     const newBest=this.score>hs;
-    if(newBest) localStorage.setItem('dogchase_hs',this.score);
+    if(newBest) lsSet('dogchase_hs',this.score);
     // Submit score to leaderboard (fire and forget — game over proceeds regardless)
-    const playerName=localStorage.getItem('dogchase_name');
+    const playerName=lsGet('dogchase_name');
     const streak=STREAKS[Math.min(this.bestCombo||0,STREAKS.length-1)]?.label||'';
-    if(playerName&&this._sessionToken){
+    pokiPlayStop();
+    if(!POKI&&playerName&&this._sessionToken){
       fetch(`${API}/scores`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -1184,7 +1220,8 @@ class GameOverScene extends Phaser.Scene {
       {fontSize:'24px',fill:'#fff',fontStyle:'900',fontFamily:FONT,stroke:'#804000',strokeThickness:2}).setOrigin(0.5).setDepth(3);
     const pz=this.add.rectangle(W/2,460,224,56,0,0).setDepth(4).setInteractive({useHandCursor:true});
     pz.on('pointerover',()=>pbg.setAlpha(0.85)); pz.on('pointerout',()=>pbg.setAlpha(1));
-    pz.on('pointerdown',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Game'));});
+    // Poki takes its ad break here, between rounds; elsewhere this just replays.
+    pz.on('pointerdown',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>pokiAdThen(()=>this.scene.start('Game')));});
 
     // After a Daily Chase the second row splits: a share line, and the way back.
     const toMenu=()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Select'));};
@@ -1208,7 +1245,9 @@ class GameOverScene extends Phaser.Scene {
         .on('pointerdown',toMenu);
     }
 
-    // Leaderboard snippet — top 3 all-time
+    // Leaderboard snippet — top 3 all-time. Poki's build has no leaderboard, so
+    // everything to the end of this block is skipped there.
+    if(!POKI){
     const lbBox=this.add.graphics().setDepth(2);
     lbBox.fillStyle(0xFFFFFF,0.04); lbBox.fillRoundedRect(22,554,W-44,56,10);
     lbBox.lineStyle(1,0xFFFFFF,0.12); lbBox.strokeRoundedRect(22,554,W-44,56,10);
@@ -1232,6 +1271,7 @@ class GameOverScene extends Phaser.Scene {
         this.add.text(x,584,s.playerName.slice(0,10),{fontSize:'9px',fill:isMe?'#FFD766':'#667766',fontFamily:FONT}).setOrigin(0.5).setDepth(3);
       });
     }).catch(()=>{ lbLoading.setText('Tap to see leaderboard'); });
+    }
 
     this.input.keyboard.once('keydown-SPACE',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Game'));});
     this.input.keyboard.once('keydown-ENTER',()=>{this.cameras.main.fadeOut(280,0,0,0);this.time.delayedCall(280,()=>this.scene.start('Game'));});
@@ -1277,7 +1317,7 @@ class NameScene extends Phaser.Scene {
       {fontSize:'12px',fill:'#AAB8A0',fontFamily:FONT}).setOrigin(0.5).setDepth(2);
 
     // Name plate
-    const saved=localStorage.getItem('dogchase_name');
+    const saved=lsGet('dogchase_name');
     this.playerName=isValidName(saved)?saved:genName();
     const nb=this.add.graphics().setDepth(2);
     nb.fillStyle(0x0d1117,1); nb.fillRoundedRect(W/2-130,H/2-78,260,46,10);
@@ -1305,7 +1345,7 @@ class NameScene extends Phaser.Scene {
     this.input.keyboard.once('keydown-ENTER',()=>this._submit());
   }
   _submit(){
-    localStorage.setItem('dogchase_name',this.playerName);
+    lsSet('dogchase_name',this.playerName);
     this.cameras.main.fadeOut(280,0,0,0);
     this.time.delayedCall(280,()=>this.scene.start('Select'));
   }
@@ -1392,7 +1432,7 @@ class LeaderboardScene extends Phaser.Scene {
         {fontSize:'14px',fill:'#667766',fontFamily:FONT}).setOrigin(0.5);
       this.rowContainer.add(t); return;
     }
-    const playerName=localStorage.getItem('dogchase_name')||'';
+    const playerName=lsGet('dogchase_name')||'';
     scores.forEach((s,i)=>{
       const y=108+i*46;
       const isMe=s.playerName===playerName||(this.highlightScore&&s.score===this.highlightScore&&s.playerName===this.highlightName);

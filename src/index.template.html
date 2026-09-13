@@ -6,6 +6,7 @@
   <title>Dog Chase!</title>
   <meta name="description" content="Pick a dog and chase squirrels before time runs out. Free, 60 seconds a round.">
   <meta name="theme-color" content="#0d1117">
+<!--WEB-ONLY-->
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -18,6 +19,7 @@
   <meta property="og:url" content="https://dogchase.eldoggosoftware.com/">
   <meta property="og:image" content="https://dogchase.eldoggosoftware.com/icons/icon-512.png">
   <meta name="twitter:card" content="summary">
+<!--/WEB-ONLY-->
   <link rel="preload" href="fonts/nunito-900.woff2" as="font" type="font/woff2" crossorigin>
   <style>
     @font-face { font-family:'Nunito'; font-weight:400; font-display:swap; src:url(fonts/nunito-400.woff2) format('woff2'); }
@@ -37,9 +39,15 @@
 </head>
 <body>
 <div id="game"></div>
+<!--POKI-ONLY-->
+<!-- Poki's own SDK is the one external script their build allows. -->
+<script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>
+<!--/POKI-ONLY-->
 <script src="vendor/phaser-__PHASER_VERSION__.min.js"></script>
 <script>__GAME_SCRIPT__</script>
+<!--WEB-ONLY-->
 <!-- Offline support for the website. The store apps already ship every file, so they skip it. -->
 <script>if('serviceWorker' in navigator && !window.Capacitor) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
+<!--/WEB-ONLY-->
 </body>
 </html>

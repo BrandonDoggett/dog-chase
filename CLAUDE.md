@@ -40,6 +40,12 @@ The store app wraps the same `dist/` build with Capacitor 8 in `android/`. The a
 - **Store listing:** `store/listing.md` has the Play copy and suggested App content answers. `npm run store` renders the feature graphic and screenshots from the real game. The privacy policy is `public/privacy.html`, served at `/privacy.html` and linked from the pick screen. Google Play requires it both in the listing and inside the app.
 - The service worker is skipped inside the app (`window.Capacitor` is set there), since the app already ships every file.
 
+## Poki build
+
+`npm run build:poki` writes `dist-poki/`. Poki block every external request and forbid outgoing links, so that build drops the leaderboard, the privacy link, the manifest and the service worker, and loads their SDK instead. The game reaches the SDK only through the `poki*` helpers in `src/game.js`, which do nothing in other builds, so a missing or blocked SDK can't stop the game. `test/poki-build.test.mjs` runs the build and fails if any of that leaks back in.
+
+Before submitting, two things are still missing: a 16:9 layout (their frame is landscape, ours is a 3:4 portrait yard) and static plus animated thumbnails. The pitch itself is drafted in `store/poki-pitch.md`.
+
 ## Architecture
 
 The game is one script, `src/game.js`, on Phaser 3. `build.mjs` minifies it and inlines it into `dist/index.html`. Phaser and the Nunito font are copied from `node_modules` and served from our own origin, with no CDNs, so the game works offline and inside app-store builds.

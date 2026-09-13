@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "node build.mjs",
+    "build:poki": "node scripts/build-poki.mjs",
     "test": "node --test",
     "smoke": "node scripts/smoke.mjs",
     "icons": "node scripts/make-icons.mjs",
