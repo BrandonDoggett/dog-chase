@@ -1,25 +1,52 @@
-# Pitching Dog Chase to Poki
+# Poki
 
-Poki takes submissions through a form, not email, and they want to hear from the
-developer, so this one is yours to send.
+**Access request submitted 13 September 2026.** Poki answered: "Thank you. We
+received your request! You'll hear back from us in a few days." Their reply goes
+to hello@eldoggosoftware.com.
 
-**Where:** https://developers.poki.com → "Submit your game"
-**Takes:** about 10 minutes.
+Sent at Kay's instruction. Note that reaching out to a company is normally his to
+do, not an agent's (eldoggo-hq CHARTER.md), so this was his call to make and he
+made it twice.
 
-## What they ask, and our answers
+## What was sent
 
-- **Play link:** https://dogchase.eldoggosoftware.com
-- **Title:** Dog Chase!
-- **Tags:** casual, arcade, animals, one-minute, high score
-- **Built with:** Phaser 3 and plain JavaScript, no plugins
-- **Mobile web:** yes. Touch controls, and a canvas that fills the frame: 16:9 on desktop, portrait on phones
-- **Their requirements:** we keep a build made for Poki — no external requests, no outgoing links, their SDK wired in for gameplay start and stop and the ad break, incognito-safe storage, and both thumbnails (static 1080x1080 and a 5-second 1080x1080 mp4)
-- **First load:** about 1.3 MB, most of it the Phaser library. No third-party calls at all, only our own leaderboard
-- **Languages:** English today
-- **Ads:** none in the game; happy to add Poki's SDK
-- **Exclusivity:** Poki prefers web-exclusive for five years. App stores aren't covered, so our Android build is unaffected. Worth asking whether our installable web app counts as "web" under that clause, since players can add the game to their home screen.
+The form at https://developers.poki.com/guide/share is a request for access to
+Poki for Developers, not a game submission. It asks about the developer, and has
+no field for a description of the game.
 
-## The note to paste
+- **Name:** Brandon Doggett
+- **Email:** hello@eldoggosoftware.com
+- **Studio:** eldoggo software
+- **Country:** United States
+- **Studio type:** Solo Developer
+- **Platforms released on:** Web only. The Android build isn't public yet, so
+  claiming app stores would have been false
+- **Links:** https://dogchase.eldoggosoftware.com and https://eldoggosoftware.com
+- **Genres:** Casual, arcade, high score
+- **Engine:** Phaser 3 (JavaScript)
+- **Goal:** Releasing existing titles
+
+## What happens next
+
+1. They reply in a few days, or not at all — they hand-curate and say they can't
+   answer every request.
+2. If they do, the game submission comes through their developer portal. That's
+   where the build and the thumbnails are used.
+3. **Ask before agreeing to anything:** Poki prefer web-exclusive for five years.
+   App stores aren't covered, so the Android build is unaffected, but ask whether
+   our installable web app counts as "web" under that clause, since players can
+   add Dog Chase to their home screen from our own site.
+
+## What's ready for them
+
+- `npm run build:poki` → a build with no external requests, no outgoing links,
+  their SDK wired to gameplay start and stop and the ad break, and storage that
+  survives incognito
+- 16:9 on desktop and portrait on phones, filling the frame either way
+- `store/thumbnail.png` — 1080x1080, full-bleed, no text
+- `store/thumbnail.mp4` — 1080x1080, 5 seconds, 50fps, recorded from a real round
+
+## A description, for when there's a place to paste one
 
 > Dog Chase is a one-minute chase game: pick a dog, pick a squirrel, and catch as
 > many as you can before the clock runs out. Four dogs with different speed and
@@ -28,9 +55,4 @@ developer, so this one is yours to send.
 > and yard each day — with its own leaderboard and a line players can share.
 >
 > It's live at dogchase.eldoggosoftware.com, built in Phaser 3, plays with touch or
-> keyboard, and installs from the browser. Happy to integrate the Poki SDK.
-
-## Before you send
-
-Play one round on your phone from that link, so the first thing they try is the
-thing that works.
+> keyboard, and installs from the browser.
