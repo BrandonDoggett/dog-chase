@@ -50,6 +50,8 @@ The site is an installable PWA: `public/manifest.webmanifest` plus icons, and `d
 
 **Daily Chase** lives in `lambda/shared.mjs`: the UTC date picks the day's dog, squirrel and yard, and seeds where squirrels and power-ups appear, so everyone plays the same round. Daily scores are stored under the day key `daily-<date>` and read back with `period=challenge`, which keeps them off the free-play boards, and the Lambda rejects a daily score played with the wrong dog or squirrel. The results screen offers the three-line summary from `shareText()`.
 
+**Your dog** is the fifth card on the pick screen: `CustomiseScene` recolours one of the four shapes and names it (`cleanDogName()` in `lambda/shared.mjs`). It lives in `localStorage` under `dogchase_mydog` and is never sent anywhere. It keeps its shape's speed and reach and reports that breed to the leaderboard, so `cfg.name` stays the breed and `cfg.label` is the player's name for it; saving redraws the `dog_my` texture. The Daily Chase always forces the day's dog, so a custom dog can't affect it.
+
 **Backend:** API Gateway `kcgalwlhh3` (stage `prod`, throttled to 25 req/s, burst 50) → Lambda `dogchase-api` → DynamoDB `dogchase-scores` (TTL on `ttl` expires used session tokens).
 
 **Scene flow:** `BootScene` → `NameScene` (first run only) → `SelectScene` → `GameScene` → `GameOverScene`, plus `LeaderboardScene`.

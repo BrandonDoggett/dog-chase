@@ -26,6 +26,18 @@ export function isValidName(name) {
   return typeof name === 'string' && NAME_RE.test(name);
 }
 
+// A player can name their own dog. That name is kept on their device and never
+// sent anywhere, but keep it short and printable so it fits on a card.
+export function cleanDogName(raw) {
+  const name = (typeof raw === 'string' ? raw : '')
+    .replace(/[^A-Za-z0-9 '\-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 12)
+    .trim(); // cutting to length can leave a trailing space
+  return name || 'My Dog';
+}
+
 // ── Daily Chase ───────────────────────────────────────────────────────────────
 // Everyone plays the same dog, squirrel and yard each day, so the day's scores
 // compare like for like. The game and the Lambda work it out from this file, so

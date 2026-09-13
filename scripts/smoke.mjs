@@ -73,6 +73,25 @@ await page.reload();
 await sceneActive("Select");
 check("service worker controls the page after reload", await page.evaluate(() => !!navigator.serviceWorker.controller));
 
+// Make it your dog: the fifth card opens the editor, and saving picks that dog.
+await tapGame(432, 162); // "Make your dog" card
+const editorOpened = await sceneActive("Customise", 15000);
+await page.evaluate(() => { document.getElementById("dogName").value = "Biscuit"; });
+await tapGame(90, 318);  // a coat colour
+await page.waitForTimeout(300);
+await page.screenshot({ path: ".smoke/5-editor.png" });
+await tapGame(320, 510); // SAVE
+const myDog = await sceneActive("Select", 15000) && await page.evaluate(() => ({
+  saved: JSON.parse(localStorage.getItem("dogchase_mydog") ?? "null"),
+  picked: window.dogChase.registry.get("dogIdx"),
+  texture: window.dogChase.textures.exists("dog_my"),
+}));
+check("your own dog can be made, saved and picked",
+  editorOpened && myDog.saved?.name === "Biscuit" && myDog.picked === 4 && myDog.texture,
+  JSON.stringify({ editorOpened, myDog }));
+await page.waitForTimeout(400);
+await page.screenshot({ path: ".smoke/5-mydog.png" });
+
 const manifest = await page.evaluate(async () => {
   const href = document.querySelector("link[rel=manifest]").href;
   const m = await (await fetch(href)).json();

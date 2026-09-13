@@ -49,6 +49,38 @@ const POWERUPS = [
   { key:'magnet', emoji:'🧲', label:'SQUIRREL MAGNET!', color:0xFF5555, bg:0xAA1111, duration:5 },
 ];
 
+// ── Your dog ──────────────────────────────────────────────────────────────────
+// A player can recolour one of the shapes above and name it after their own dog.
+// It's kept on the device, never sent anywhere, and stands in as a fifth dog on
+// the pick screen. It keeps its shape's speed and reach, so nothing gets easier,
+// and it reports that breed to the leaderboard. cfg.name stays the breed (the
+// drawing code reads it); cfg.label is the player's name for it.
+const MY_DOG_KEY='dogchase_mydog';
+const MY_DOG_IDX=DOGS.length;
+const CARD_X=[60,180,300,420]; // centres for a row of four cards across W=480
+
+function myDog(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(MY_DOG_KEY));
+    if(!saved||typeof saved!=='object') return null;
+    const shape=Number.isInteger(saved.shape)&&DOGS[saved.shape]?saved.shape:0;
+    return {...DOGS[shape],
+      body:saved.body??DOGS[shape].body, patch:saved.patch??DOGS[shape].patch,
+      ear:saved.ear??DOGS[shape].ear,   snout:saved.snout??DOGS[shape].snout,
+      label:cleanDogName(saved.name), shape, custom:true};
+  }catch{ return null; }
+}
+
+function dogCfgFor(idx){ return idx===MY_DOG_IDX ? (myDog()||DOGS[0]) : (DOGS[idx]||DOGS[0]); }
+function dogTextureFor(idx){ return idx===MY_DOG_IDX&&myDog() ? 'dog_my' : 'dog_'+(DOGS[idx]?idx:0); }
+function dogLabel(cfg){ return cfg.label||cfg.name; }
+
+// Redrawn whenever the player changes their dog's colours.
+function makeDogTexture(scene,cfg,key){
+  if(scene.textures.exists(key)) scene.textures.remove(key);
+  const g=scene.add.graphics(); drawDog(g,cfg); g.generateTexture(key,76,58); g.destroy();
+}
+
 // ── Sprite drawing ────────────────────────────────────────────────────────────
 function ol(g, a=0.20) { g.fillStyle(0x1A1010, a); }
 function fl(g, c, a=1) { g.fillStyle(c, a); }
@@ -154,7 +186,8 @@ function drawTree(g, t1, t2, trunk) {
 class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
   create() {
-    DOGS.forEach((c,i)=>{ const g=this.add.graphics(); drawDog(g,c); g.generateTexture('dog_'+i,76,58); g.destroy(); });
+    DOGS.forEach((c,i)=>makeDogTexture(this,c,'dog_'+i));
+    const mine=myDog(); if(mine) makeDogTexture(this,mine,'dog_my');
     SQUIRRELS.forEach((c,i)=>{ const g=this.add.graphics(); drawSquirrel(g,c); g.generateTexture('sq_'+i,52,46); g.destroy(); });
     BGS.forEach((b,i)=>{ const g=this.add.graphics(); drawTree(g,b.t1,b.t2,b.trunk); g.generateTexture('tree_'+i,50,60); g.destroy(); });
 
@@ -248,22 +281,43 @@ class SelectScene extends Phaser.Scene {
     secLabel('CHOOSE YOUR DOG', y);
     y += 13;
 
-    DOGS.forEach((d,i) => {
-      const cx = CX[i];
+    // Four breeds plus the player's own dog, so five cards share this row.
+    const DX = [48,144,240,336,432], DHW = 45;
+    const mine = myDog();
+    [...DOGS, mine].forEach((d,i) => {
+      const cx = DX[i];
       const sel = i===this.dogIdx;
       const cg = this.add.graphics().setDepth(1);
-      this._card(cg, cx-CHW, y, CHW*2, 86, sel);
-      this.add.image(cx, y+38, 'dog_'+i).setScale(1.1).setDepth(3);
-      this.add.text(cx, y+78, d.name,
-        {fontSize:'9px',fill: sel?'#FFD766':'#E0E8D0',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
-      this.add.rectangle(cx, y+43, CHW*2, 86, 0,0).setDepth(4).setInteractive({useHandCursor:true})
-        .on('pointerdown',()=>{ this.dogIdx=i; this._refresh(); });
+      this._card(cg, cx-DHW, y, DHW*2, 86, sel);
+      if(d){
+        this.add.image(cx, y+36, dogTextureFor(i)).setScale(0.95).setDepth(3);
+        this.add.text(cx, y+78, dogLabel(d),
+          {fontSize:'8.5px',fill: sel?'#FFD766':'#E0E8D0',fontFamily:FONT,fontStyle:'bold',
+           align:'center',wordWrap:{width:DHW*2-8}}).setOrigin(0.5).setDepth(3);
+      } else {
+        this.add.text(cx, y+34, '+',
+          {fontSize:'28px',fill:'#CC99FF',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
+        this.add.text(cx, y+64, 'Make\nyour dog',
+          {fontSize:'8.5px',fill:'#CC99FF',fontFamily:FONT,fontStyle:'bold',align:'center'}).setOrigin(0.5).setDepth(3);
+      }
+      this.add.rectangle(cx, y+43, DHW*2, 86, 0,0).setDepth(4).setInteractive({useHandCursor:true})
+        .on('pointerdown',()=>{
+          // Your own dog: tap it when it isn't made yet, or is already picked, to edit it.
+          if(i===MY_DOG_IDX&&(!d||sel)){
+            this.cameras.main.fadeOut(220,0,0,0);
+            this.time.delayedCall(220,()=>this.scene.start('Customise'));
+            return;
+          }
+          this.dogIdx=i; this._refresh();
+        });
     });
     y += 100;
 
-    const dg = DOGS[this.dogIdx];
+    const dg = dogCfgFor(this.dogIdx);
     this.add.text(W/2, y,
-      `${dg.desc}  ·  Spd ${'▸'.repeat(dg.sStars)}  Reach ${'●'.repeat(dg.rStars)}`,
+      this.dogIdx===MY_DOG_IDX&&mine
+        ? `${dogLabel(dg)}  ·  tap again to recolour  ·  Spd ${'▸'.repeat(dg.sStars)}  Reach ${'●'.repeat(dg.rStars)}`
+        : `${dg.desc}  ·  Spd ${'▸'.repeat(dg.sStars)}  Reach ${'●'.repeat(dg.rStars)}`,
       {fontSize:'11px',fill:'#C8DCBC',fontFamily:FONT}).setOrigin(0.5).setDepth(2);
     y += 18;
 
@@ -417,12 +471,134 @@ class SelectScene extends Phaser.Scene {
   }
 }
 
+// ── Make it your dog ──────────────────────────────────────────────────────────
+// Recolour one of the four shapes and name it after your own dog. Everything here
+// stays on the device; the leaderboard still sees the breed it's shaped like.
+const COAT=[0x9B5E2A,0xD4962A,0xEEEBE6,0xD08040,0x6B4226,0x2E2A28,0xF0E0C0,0x8A8A92,0xC85A2A,0x5A7A9A];
+const PARTS=[['body','COAT'],['patch','MARKINGS'],['ear','EARS'],['snout','SNOUT']];
+
+class CustomiseScene extends Phaser.Scene {
+  constructor(){ super('Customise'); }
+
+  create(){
+    this.cameras.main.fadeIn(280,0,0,0);
+    const mine=myDog(), base=DOGS[mine?mine.shape:0];
+    this.cfg={shape:mine?mine.shape:0,
+      body:mine?mine.body:base.body, patch:mine?mine.patch:base.patch,
+      ear:mine?mine.ear:base.ear,   snout:mine?mine.snout:base.snout};
+
+    const bg=this.add.graphics();
+    bg.fillGradientStyle(0x2A2438,0x2A2438,0x16162A,0x16162A,1); bg.fillRect(0,0,W,H);
+
+    this.add.text(W/2,20,'MAKE IT YOUR DOG',
+      {fontSize:'22px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'900',stroke:'#000',strokeThickness:3}).setOrigin(0.5,0).setDepth(2);
+
+    const panel=this.add.graphics().setDepth(1);
+    panel.fillStyle(0xFFFFFF,0.06); panel.fillRoundedRect(W/2-120,60,240,116,14);
+    panel.lineStyle(1.5,0xCC99FF,0.4); panel.strokeRoundedRect(W/2-120,60,240,116,14);
+    this.preview=this.add.graphics().setDepth(2).setScale(2).setPosition(W/2-76,64);
+
+    this.nameInput=this.add.dom(W/2,200).createFromHTML(
+      `<input id="dogName" type="text" maxlength="12" placeholder="Your dog's name"
+       style="width:230px;padding:8px 12px;font-size:16px;font-family:Nunito,Arial;
+       border-radius:10px;border:2px solid #CC99FF;background:#12101A;color:#FFF5DD;
+       text-align:center;outline:none;" />`).setDepth(3);
+    if(mine) this.nameInput.getChildByID('dogName').value=mine.label;
+
+    this.add.text(W/2,234,'SHAPE',
+      {fontSize:'10px',fill:'#AA99CC',fontFamily:FONT,fontStyle:'bold',letterSpacing:2}).setOrigin(0.5).setDepth(2);
+    this.shapeCards=DOGS.map((d,i)=>{
+      const cx=CARD_X[i];
+      const card=this.add.graphics().setDepth(1);
+      this.add.image(cx,272,'dog_'+i).setScale(0.8).setDepth(2);
+      this.add.rectangle(cx,272,104,50,0,0).setDepth(4).setInteractive({useHandCursor:true})
+        .on('pointerdown',()=>{ this.cfg.shape=i; this._drawShapes(); this._drawPreview(); });
+      return {i,card,cx};
+    });
+
+    this.swatches=[];
+    PARTS.forEach(([part,label],row)=>{
+      const y=318+row*44;
+      this.add.text(22,y,label,
+        {fontSize:'9px',fill:'#AA99CC',fontFamily:FONT,fontStyle:'bold',letterSpacing:1}).setOrigin(0,0.5).setDepth(2);
+      COAT.forEach((colour,i)=>{
+        const x=90+i*38; // starts clear of the row's label
+        const dot=this.add.circle(x,y,15,colour).setDepth(2);
+        this.add.rectangle(x,y,38,38,0,0).setDepth(4).setInteractive({useHandCursor:true})
+          .on('pointerdown',()=>{ this.cfg[part]=colour; this._drawSwatches(); this._drawPreview(); });
+        this.swatches.push({part,colour,dot});
+      });
+    });
+
+    const btn=this.add.graphics().setDepth(2);
+    drawBtn(btn,W/2-150,490,140,40,20,0x3A3050,0xCC99FF,0.5);
+    this.add.text(W/2-80,510,'🎲  Surprise',
+      {fontSize:'13px',fill:'#DDBBFF',fontFamily:FONT,fontStyle:'bold'}).setOrigin(0.5).setDepth(3);
+    this.add.rectangle(W/2-80,510,140,40,0,0).setDepth(4).setInteractive({useHandCursor:true})
+      .on('pointerdown',()=>{
+        const any=a=>a[Math.floor(Math.random()*a.length)];
+        this.cfg.shape=Math.floor(Math.random()*DOGS.length);
+        ['body','patch','ear','snout'].forEach(p=>{ this.cfg[p]=any(COAT); });
+        this._drawShapes(); this._drawSwatches(); this._drawPreview();
+      });
+
+    drawBtn(btn,W/2+10,490,140,40,20,0xE89020,0xFFD766,0.85);
+    this.add.text(W/2+80,510,'SAVE',
+      {fontSize:'16px',fill:'#fff',fontFamily:FONT,fontStyle:'900'}).setOrigin(0.5).setDepth(3);
+    this.add.rectangle(W/2+80,510,140,40,0,0).setDepth(4).setInteractive({useHandCursor:true})
+      .on('pointerdown',()=>this._save());
+
+    this.add.text(W/2,556,'← Back without saving',
+      {fontSize:'11px',fill:'#9988AA',fontFamily:FONT}).setOrigin(0.5).setDepth(3);
+    this.add.rectangle(W/2,556,220,30,0,0).setDepth(4).setInteractive({useHandCursor:true})
+      .on('pointerdown',()=>this._leave());
+
+    this._drawShapes(); this._drawSwatches(); this._drawPreview();
+  }
+
+  _drawPreview(){
+    this.preview.clear();
+    drawDog(this.preview,{...DOGS[this.cfg.shape],...this.cfg,name:DOGS[this.cfg.shape].name});
+  }
+
+  _drawShapes(){
+    this.shapeCards.forEach(({i,card,cx})=>{
+      const sel=i===this.cfg.shape;
+      card.clear();
+      card.fillStyle(0xFFFFFF,sel?0.18:0.07); card.fillRoundedRect(cx-52,247,104,50,9);
+      card.lineStyle(sel?2.5:1.2,sel?0xCC99FF:0xFFFFFF,sel?1:0.25); card.strokeRoundedRect(cx-52,247,104,50,9);
+    });
+  }
+
+  _drawSwatches(){
+    this.swatches.forEach(({part,colour,dot})=>{
+      const sel=this.cfg[part]===colour;
+      dot.setStrokeStyle(sel?3.5:2,0xFFFFFF,sel?1:0.22).setScale(sel?1.08:1);
+    });
+  }
+
+  _save(){
+    const name=cleanDogName(this.nameInput.getChildByID('dogName').value);
+    localStorage.setItem(MY_DOG_KEY,JSON.stringify({...this.cfg,name}));
+    const mine=myDog();
+    if(mine) makeDogTexture(this,mine,'dog_my');
+    this.registry.set('daily',false);
+    this.registry.set('dogIdx',MY_DOG_IDX);
+    this._leave();
+  }
+
+  _leave(){
+    this.cameras.main.fadeOut(240,0,0,0);
+    this.time.delayedCall(240,()=>this.scene.start('Select'));
+  }
+}
+
 // ── Game Scene ────────────────────────────────────────────────────────────────
 class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
   create() {
-    this.dogCfg = DOGS[this.registry.get('dogIdx')??0];
+    this.dogCfg = dogCfgFor(this.registry.get('dogIdx')??0);
     this.sqCfg  = SQUIRRELS[this.registry.get('sqIdx')??0];
     this.bgIdx  = this.registry.get('bgIdx')??0;
     this.bgCfg  = BGS[this.bgIdx];
@@ -542,7 +718,7 @@ class GameScene extends Phaser.Scene {
   }
 
   buildDog() {
-    const key='dog_'+(this.registry.get('dogIdx')??0);
+    const key=dogTextureFor(this.registry.get('dogIdx')??0);
     this.dogShad=this.add.ellipse(W/2,H/2+12,44,12,0x000000,0.15).setDepth(3);
     this.dog=this.physics.add.image(W/2,H/2,key).setDepth(5);
     this.dog.setCollideWorldBounds(true); this.dog.setCircle(16,16,10);
@@ -970,7 +1146,7 @@ class GameOverScene extends Phaser.Scene {
 
     // Dog — center at 192 (top=140, clear of badge bottom 124)
     const dogIdx=this.registry.get('dogIdx')??0;
-    const dog=this.add.image(W/2,192,'dog_'+dogIdx).setScale(1.8).setDepth(2);
+    const dog=this.add.image(W/2,192,dogTextureFor(dogIdx)).setScale(1.8).setDepth(2);
     this.tweens.add({targets:dog,y:182,duration:1000,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     this.add.ellipse(W/2,245,42,11,0x000000,0.15).setDepth(1);
 
@@ -1243,7 +1419,8 @@ Promise.race([fontsReady,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then
   type:Phaser.AUTO,
   backgroundColor:'#0d1117',
   parent:'game',
+  dom:{ createContainer:true }, // the name field on the Make it your dog screen
   scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:W,height:H},
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,NameScene,SelectScene,GameScene,GameOverScene,LeaderboardScene],
+  scene:[BootScene,NameScene,SelectScene,CustomiseScene,GameScene,GameOverScene,LeaderboardScene],
 }); });
