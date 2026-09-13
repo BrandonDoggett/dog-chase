@@ -12,7 +12,8 @@ developer, so this one is yours to send.
 - **Title:** Dog Chase!
 - **Tags:** casual, arcade, animals, one-minute, high score
 - **Built with:** Phaser 3 and plain JavaScript, no plugins
-- **Mobile web:** yes. Touch controls, portrait, a 480x640 canvas that scales to any screen
+- **Mobile web:** yes. Touch controls, and a canvas that fills the frame: 16:9 on desktop, portrait on phones
+- **Their requirements:** we keep a build made for Poki — no external requests, no outgoing links, their SDK wired in for gameplay start and stop and the ad break, incognito-safe storage, and both thumbnails (static 1080x1080 and a 5-second 1080x1080 mp4)
 - **First load:** about 1.3 MB, most of it the Phaser library. No third-party calls at all, only our own leaderboard
 - **Languages:** English today
 - **Ads:** none in the game; happy to add Poki's SDK

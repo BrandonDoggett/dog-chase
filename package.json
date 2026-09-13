@@ -9,6 +9,8 @@
     "test": "node --test",
     "smoke": "node scripts/smoke.mjs",
     "icons": "node scripts/make-icons.mjs",
+    "thumbnail": "node scripts/make-thumbnail.mjs",
+    "thumbnail:video": "node scripts/make-thumbnail-video.mjs",
     "store": "node scripts/store-assets.mjs",
     "deploy:lambda": "npm test && node scripts/deploy-lambda.mjs",
     "cap": "cap",
